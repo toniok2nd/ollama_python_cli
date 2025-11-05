@@ -44,10 +44,7 @@ log "All prerequisites are present."
 # 2. Choose install locations
 # ---------------------------------------------------------------
 # Base directory where the repo will be cloned
-DEFAULT_BASE="${HOME}/.local/ollama_python_cli"
-read -rp "Where should the repository be cloned? [$DEFAULT_BASE] " REPO_BASE
-REPO_BASE=${REPO_BASE:-$DEFAULT_BASE}
-REPO_BASE=$(realpath "$REPO_BASE")   # canonical path
+REPO_BASE="${HOME}/.local/ollama_python_cli"
 
 # Directory that will hold the command wrapper
 # Prefer /usr/local/bin (needs sudo) – otherwise fall back to ~/.local/bin
