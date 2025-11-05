@@ -2,6 +2,10 @@
 ```bash
 curl -fsSL https://ollama.com/install.sh | sh
 ```
+# install fzf
+```bash
+sudo apt install fzf
+```
 # you need to connect
 ```bash
 (VENV) (base) toniok@hpDre:~/ollama_python_cli 🥩 $ ollama signin

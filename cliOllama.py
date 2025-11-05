@@ -173,7 +173,8 @@ def run_ollama_cli(model: str, history: str):
         yield f"Internal ERROR: {str(e)}"
 
 def main():
-    model = 'minimax-m2:cloud'
+    cmd="echo -n $(ollama list | fzf --tac |awk '{print $1}')"
+    model=subprocess.check_output(['bash',  '-c', cmd]).decode()
     console = Console()
     history = ""
     buffer = ""
@@ -184,6 +185,11 @@ def main():
 
         if user_input.lower() == 'exit':
             break
+        match0 = re.match(r'(/.*)', user_input)
+        if match0:
+            print(match0.group(0))
+            for line in run_ollama_cli(model, match0.group(1)):
+                console.print(line)
         match1 = re.match(r'(>>\ *)([0-9]+)(.*)', user_input)
         if match1 and mdl:
             number=match1.group(2)
