@@ -9,10 +9,10 @@ from rich.live import Live
 from rich.emoji import Emoji
 from rich.console import Console
 from prompt_toolkit import prompt
-from rich.markdown import Markdown
+from chatManager import ChatManager
 from typing import Any, Dict, Union 
 from prompt_toolkit.styles import Style
-from MarkedownExtractor import MarkdownExtractor
+from markedownExtractor import MarkdownExtractor
 
 
 # define style for prompt
@@ -111,23 +111,13 @@ def show_internal_options(console):
     /?   => to show this help
     /save => to save current CHAT
     /load => to load saved CHAT
+    EOF => to valide prompt input
+    >> => show all code blocks available
+    >>0 => show code block 0 and add it to clipboard buffer
+    || => show all tables available
+    ||0 => show table 0 and add it to clipboard buffer
     """
     console.print(options, style="red")
-
-class ChatMangager:
-    def __init__():
-        pass
-
-    def load_from_file(cls, file_path: Union[str, Path]) -> json:
-        path = Path(file_path).expanduser().resolve()
-        if not path.is_file():
-            raise ChatManagerError(f"File not found: {path}")
-        try:
-            raw: Dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            raise ChatManagerError(f"Invalid JSON in {path}: {exc}") from exc
-
-
 
 ########
 # MAIN #
@@ -147,23 +137,25 @@ def main(argv: list[str] | None = None) -> int:
     model=None
 
     # Parse cli arguments
-    if args.model:
-        model=args.model
-    else:
-        cmd="echo -n $(ollama list | fzf --tac |awk '{print $1}')"
-        model=subprocess.check_output(['bash',  '-c', cmd]).decode()
-    console.print(f"Model selected:  {model}", style="bold white on green")
-
     if args.load:
         console.print(f"File to load:    {args.load}")
         # Example of opening the file safely:
         try:
-            with args.load.open("r", encoding="utf-8") as f:
-                content = f.read()
-                console.print(f"First 200 chars of the file:\n{content[:200]!r}")
+            c=ChatManager()
+            c.load_from_file(str(args.load))
+            model=c.get_model()
+            history=c.data.get('history')
         except Exception as exc:
             console.print(f"Error reading file {args.load}: {exc}", file=sys.stderr)
             sys.exit(1)
+
+    if model == None:
+        if args.model:
+            model=args.model
+        else:
+            cmd="echo -n $(ollama list | fzf --tac |awk '{print $1}')"
+            model=subprocess.check_output(['bash',  '-c', cmd]).decode()
+    console.print(f"Model selected:  {model}", style="bold white on green")
 
     # Main loop
     while True:
@@ -178,11 +170,33 @@ def main(argv: list[str] | None = None) -> int:
         if user_input.lower() == '/save':
             chatname_input = prompt("enter the name of the chat to save:\n",style=style_g)
             console.print(chatname_input)
+            c=ChatManager()
+            c.save_file(chatname_input, model, history)
             user_input=""
             pass
         if user_input.lower() == '/load':
-            chatname_input = prompt("enter the name of the chat to load:\n",style=style_g)
+            c=ChatManager()
+            tmp='\n'.join([e.get("fileName") for e in c.historyList])
+            cmd=f"echo $(echo -e {repr(tmp)} "+"| fzf --tac |awk '{print $1}')"
+            chatname_input=subprocess.check_output(['bash',  '-c', cmd]).decode()
             console.print(chatname_input)
+            c.load_from_file(chatname_input)
+            model=c.get_model()
+            history=c.data.get('history')
+            user_input=""
+            pass
+        if user_input.lower() == '>>':
+            if mdl:
+                mdl.print_code_blocks()
+            else:
+                console.print("nothing to print")
+            user_input=""
+            pass
+        if user_input.lower() == '||':
+            if mdl:
+                mdl.print_tables()
+            else:
+                console.print("nothing to print")
             user_input=""
             pass
         match1 = re.match(r'(>>\ *)([0-9]+)(.*)', user_input)
@@ -214,9 +228,6 @@ def main(argv: list[str] | None = None) -> int:
             content, _, _ = buffer.partition("EOF")
             history += f"\nUser: {content}"
             buffer = ""
-
-            # Print user input
-            console.print(f"[bold cyan]User:[/bold cyan] {content}\n")
 
             # Stream assistant response
             current_response = ""

@@ -1,13 +1,14 @@
+# install ollama 
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+then
 # install with curl
 ```bash
 curl -fsSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/install_ollama_cli.sh | bash
 ```
 -------------------------------------------------
 
-# you need to have ollama installed 
-```bash
-curl -fsSL https://ollama.com/install.sh | sh
-```
 # install fzf
 ```bash
 sudo apt install fzf
