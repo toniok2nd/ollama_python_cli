@@ -9,6 +9,7 @@ from rich.live import Live
 from rich.emoji import Emoji
 from rich.console import Console
 from prompt_toolkit import prompt
+from rich.markdown import Markdown
 from chatManager import ChatManager
 from typing import Any, Dict, Union 
 from prompt_toolkit.styles import Style
