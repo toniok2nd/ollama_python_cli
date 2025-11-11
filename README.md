@@ -20,7 +20,7 @@ curl -fsSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/in
 </video>
 
 *If the video doesn’t play, try the direct download link:*  
-[Download MP4](https://toniok2nd.github.io/ollama_python_cli/docs/video/myollama.mp4)
+[Download MP4](https://github.com/toniok2nd/ollama_python_cli/raw/refs/heads/main/docs/video/myollama.mp4)
 
 -------------------------------------------------
 
