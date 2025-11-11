@@ -24,6 +24,14 @@ curl -fsSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/in
 [Download MP4](https://github.com/toniok2nd/ollama_python_cli/raw/refs/heads/main/docs/video/myollama.mp4)
 [Download MKV](https://github.com/toniok2nd/ollama_python_cli/raw/refs/heads/main/docs/video/myollama.mkv)
 
+## 🎬 Demo video
+
+<video controls width="720" poster="https://gitlab.com/toniok2nd/ollama_python_cli/-/raw/main/docs/video/preview.png">
+  <source src="https://gitlab.com/toniok2nd/ollama_python_cli/-/raw/main/docs/video/smaller.mp4" type="video/mp4">
+  Your browser does not support the HTML5 video tag.
+</video>
+
+[Download MP4](https://gitlab.com/toniok2nd/ollama_python_cli/-/raw/main/docs/video/myollama.mp4)
 -------------------------------------------------
 
 # install fzf
