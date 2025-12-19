@@ -7,7 +7,7 @@ from mcp.types import CallToolResult
 from typing import Any, Dict, Union 
 from chatManager import ChatManager
 from rich.markdown import Markdown
-from prompt_toolkit import prompt
+from prompt_toolkit import PromptSession, prompt
 from rich.console import Console
 from rich.emoji import Emoji
 from rich.text import Text
@@ -313,17 +313,15 @@ async def main_async(argv: list[str] | None = None) -> int:
                 yield from self.word_completer.get_completions(document, complete_event)
 
         completer = StartOfLineCompleter(internal_commands)
+        # Initialize PromptSession for history support
+        session_input = PromptSession()
 
         while True:
-            # We use prompt() synchronously because it's blocking anyway
-            # But inside async function, should we use run_in_executor?
-            # Creating a prompt session might be better, but sticking to existing prompt()
-            # method which blocks the event loop is OK if no background tasks.
-            # However, prompt() returns a string.
+            # Multi-line logic: if buffer is not empty, use simpler prompt
+            prompt_text = f"{Emoji('peanuts')} >> {Emoji('brain')} \n" if not buffer else ""
             
-            user_input = await asyncio.to_thread(
-                prompt, 
-                f"{Emoji('peanuts')} >> {Emoji('brain')} \n" if not buffer else "", 
+            user_input = await session_input.prompt_async(
+                prompt_text,
                 style=style_b,
                 completer=completer
             )
