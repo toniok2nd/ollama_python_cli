@@ -94,7 +94,20 @@ async def run_chat_turn(model, messages, session=None):
                 # Let's accumulate. 
                 tcs = chunk['message']['tool_calls']
                 for tc in tcs:
-                     final_message['tool_calls'].append(tc)
+                     # Convert to dict to ensure JSON serializability
+                     if hasattr(tc, 'model_dump'):
+                         final_message['tool_calls'].append(tc.model_dump())
+                     elif hasattr(tc, 'dict'):
+                         final_message['tool_calls'].append(tc.dict())
+                     else:
+                         # Fallback manual extraction
+                         final_message['tool_calls'].append({
+                             'type': 'function',
+                             'function': {
+                                 'name': getattr(tc.function, 'name', None),
+                                 'arguments': getattr(tc.function, 'arguments', None)
+                             }
+                         })
 
         # After stream finishes
         if not final_message['tool_calls']:
