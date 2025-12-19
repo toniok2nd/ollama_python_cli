@@ -185,7 +185,7 @@ fi
 # ---------------------------------------------------------------
 # 4. Set up a Python virtual environment
 # ---------------------------------------------------------------
-VENV_DIR="${REPO_BASE}/.venv"
+VENV_DIR="${REPO_BASE}/VENV"
 
 if [ -d "$VENV_DIR" ]; then
     log "Virtualenv already exists – updating packages..."

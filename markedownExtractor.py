@@ -5,8 +5,8 @@ import re
 
 class MarkdownExtractor:
     """
-    Extracts Markdown tables and code zones from a Markdown string,
-    and allows selective rendering with Rich.
+    Utility class to parse and extract structured elements (tables and code blocks) 
+    from a Markdown string. It allows for selective rendering using the Rich library.
     """
 
     _code_block_pattern = re.compile(
@@ -20,17 +20,28 @@ class MarkdownExtractor:
     )
 
     def __init__(self, markdown_text: str):
+        """
+        Initialize the extractor with markdown text.
+        
+        Args:
+            markdown_text: The raw markdown string to parse.
+        """
         self.text = markdown_text
         self.console = Console()
 
-        # Cache parsed data
+        # Cache parsed data for performance
         self._tables = None
         self._code_blocks = None
 
     # ---------------- Extraction ---------------- #
 
     def extract_code_blocks(self) -> List[Dict[str, Optional[str]]]:
-        """Extract all fenced code blocks."""
+        """
+        Identifies and extracts all fenced code blocks from the text.
+        
+        Returns:
+            A list of dictionaries, each containing 'language' and 'code'.
+        """
         if self._code_blocks is not None:
             return self._code_blocks
 
@@ -43,20 +54,32 @@ class MarkdownExtractor:
         return blocks
 
     def extract_tables(self) -> List[str]:
-        """Extract all Markdown tables as raw text."""
+        """
+        Identifies and extracts all Markdown tables from the text.
+        Uses a heuristic to ensure the extracted block contains a separator line.
+        
+        Returns:
+            A list of raw table strings.
+        """
         if self._tables is not None:
             return self._tables
 
         tables = []
         for match in self._table_pattern.finditer(self.text):
             table = match.group(1).strip()
+            # Simple check for the separator line (e.g., |---|)
             if re.search(r'\|\s*:?-{3,}:?\s*\|', table):
                 tables.append(table)
         self._tables = tables
         return tables
 
     def extract_all(self) -> Dict[str, List]:
-        """Return both tables and code blocks."""
+        """
+        Extracts both tables and code blocks.
+        
+        Returns:
+            A dictionary with 'tables' and 'code_blocks' keys.
+        """
         return {
             'tables': self.extract_tables(),
             'code_blocks': self.extract_code_blocks(),
@@ -66,7 +89,10 @@ class MarkdownExtractor:
 
     def print_table(self, index: int):
         """
-        Print a specific table by index (1-based).
+        Renders a specific extracted table to the console using Rich.
+        
+        Args:
+            index: The 0-based index of the table to print.
         """
         tables = self.extract_tables()
         if not tables:
@@ -82,7 +108,10 @@ class MarkdownExtractor:
 
     def print_code(self, index: int):
         """
-        Print a specific code block by index (1-based).
+        Renders a specific extracted code block to the console using Rich.
+        
+        Args:
+            index: The 0-based index of the code block to print.
         """
         blocks = self.extract_code_blocks()
         if not blocks:
@@ -99,7 +128,7 @@ class MarkdownExtractor:
         self.console.print(md)
 
     def print_tables(self):
-        """Print all tables."""
+        """Renders all found tables to the console."""
         tables = self.extract_tables()
         if not tables:
             self.console.print("[yellow]No tables found.[/yellow]")
@@ -109,7 +138,7 @@ class MarkdownExtractor:
             self.print_table(i)
 
     def print_code_blocks(self):
-        """Print all code blocks."""
+        """Renders all found code blocks to the console."""
         blocks = self.extract_code_blocks()
         if not blocks:
             self.console.print("[yellow]No code blocks found.[/yellow]")
@@ -119,10 +148,8 @@ class MarkdownExtractor:
             self.print_code(i)
 
     def print_all(self):
-        """Print everything."""
+        """Renders everything extracted (tables and code) to the console."""
         self.console.print("\n[bold cyan]Extracted Tables:[/bold cyan]")
         self.print_tables()
         self.console.print("\n[bold cyan]Extracted Code Blocks:[/bold cyan]")
         self.print_code_blocks()
-
-

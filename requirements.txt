@@ -1,10 +1,5 @@
 rich
 prompt_toolkit
 pyperclip
-
-fastapi
-tapi 
-uvicorn 
-httpx 
-GitPython 
-pydantic[dotenv]
+ollama
+mcp

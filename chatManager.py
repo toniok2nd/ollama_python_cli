@@ -1,6 +1,6 @@
-import json
 from typing import Union
 from pathlib import Path
+import json
 
 
 class ChatManagerError(RuntimeError):
@@ -8,7 +8,18 @@ class ChatManagerError(RuntimeError):
     pass
 
 class ChatManager:
+    """
+    Manages loading and saving of chat history and model selection.
+    Stores a history list of chats in a central JSON file and individual chat sessions in separate files.
+    """
     def __init__(self,_file_path: Union[str, Path]='historyList.json'):
+        """
+        Initialize the ChatManager.
+        
+        Args:
+            _file_path: Path to the main history index file. Defaults to 'historyList.json'.
+                        If None, starts with empty history/data.
+        """
         self.historyList=None
         self.historyFile=_file_path
         if _file_path != None:
@@ -18,6 +29,17 @@ class ChatManager:
                 self.historyList=[]
 
     def load_from_file(self, file_path: Union[str, Path], endData='data') -> json:
+        """
+        Load JSON data from a file into an instance attribute.
+        
+        Args:
+            file_path: Path to the JSON file to load.
+            endData: Name of the attribute to store the loaded data in (e.g. 'data', 'historyList').
+                     WARNING: uses exec() to set the attribute dynamically.
+        
+        Raises:
+            ChatManagerError: If file not found or invalid JSON.
+        """
         path = Path(file_path.strip()).expanduser().resolve()
         if not path.is_file():
             raise ChatManagerError(f"File not found: {path}")
@@ -29,10 +51,19 @@ class ChatManager:
             raise ChatManagerError(f"Invalid JSON in {path}: {exc}") from exc
 
     def get_model(self):
+        """
+        Retrieve the model name from the currently loaded chat data.
+        
+        Returns:
+            The model name string, or None if data is not loaded.
+        """
         if self.data != None:
             return self.data.get('model')
 
     def save_history_file(self):
+        """
+        Save the global list of chat history files (historyList) to disk.
+        """
         try:
             path = Path(self.historyFile).expanduser().resolve()
             with open(path,'w') as f:
@@ -41,6 +72,14 @@ class ChatManager:
             raise ChatManagerError(f"Error saving json file {path}: {exc}") from exc
 
     def save_file(self, _filename, _model, _history):
+        """
+        Save the current chat session to a file and update the global history list.
+        
+        Args:
+            _filename: Name of the file to save the chat to.
+            _model: Name of the model used in this chat.
+            _history: Chat history content (list of messages or string).
+        """
         try:
             path = Path(_filename).expanduser().resolve()
             with open(path,'w') as f:
@@ -53,6 +92,7 @@ class ChatManager:
 
 
 if __name__=="__main__":
+    # Test block
     c=ChatManager()
     model="testme"
     data={"kjlk":"kjlkjlk"}

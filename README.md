@@ -1,43 +1,62 @@
-# install ollama 
-```bash
-curl -fsSL https://ollama.com/install.sh | sh
-```
-then
-# install with curl
+# Ollama Python CLI (via official ollama library)
+
+A Python CLI wrapper that uses the official `ollama` Python library to interact with your local Ollama instance.
+
+## Requirements
+
+- Python 3.8+
+- `ollama` (running locally)
+- `fzf` (for interactive model selection)
+
+## Installation
+
+### Automated Install
 ```bash
 curl -fsSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/install_ollama_cli.sh | bash
 ```
+This will install a global `myollama` command on your system.
 
--------------------------------------------------
-
-## 🎬 Demo video
-
-https://github.com/user-attachments/assets/486091e7-41cb-4280-ba64-4ced43bca1ab
-
--------------------------------------------------
-
-# install fzf
+### Uninstallation
 ```bash
-sudo apt install fzf
+curl -fsSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/uninstall_ollama_cli.sh | bash
 ```
-# you need to connect
+This will remove the virtual environment, the repository, and the global command.
+
+### Manual Install
 ```bash
-(VENV) (base) toniok@hpDre:~/ollama_python_cli 🥩 $ ollama signin
-You need to be signed in to Ollama to run Cloud models.
+# Clone repository
+git clone https://github.com/toniok2nd/ollama_python_cli
+cd ollama_python_cli
 
-To sign in, navigate to:
-    https://ollama.com/connect?name=hpDre.local&key=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-```
-
-# then install your python venv
-```python3
+# Create virtual environment
 python3 -m venv VENV
 source VENV/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-# then run script
+## Usage
+
+Ensure Ollama is running (`ollama serve`).
+
+### Run with a specific model
 ```bash
-python cliOllama.py
+myollama --model mistral:latest
 ```
 
+### Enable File System Access (MCP)
+To enable file operations (defaults to current directory):
+```bash
+myollama --enable-fs
+```
+Or specify a working directory:
+```bash
+myollama --enable-fs /path/to/project
+```
+
+### Interactive Selection
+If you run without arguments, it use `ollama list` and `fzf` to let you select an available model:
+```bash
+myollama
+```
