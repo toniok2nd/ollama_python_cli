@@ -10,8 +10,9 @@ A powerful, feature-rich Python CLI wrapper for the official `ollama` library. T
 - **Rich Markdown Rendering**: Beautifully formatted responses using the `rich` library.
 - **Element Extraction**: Special commands to list and copy code blocks (`>>`) or tables (`||`) from the last response.
 - **Custom Themes**: Interactively change prompt colors and styles.
-- **Shell Execution**: Run bash commands directly from the chat interface using `/!`.
-- **Session Management**: Save and load chat histories in JSON format.
+- **Shell Execution**: Run bash commands directly from the chat interface using `!` (e.g., `!ls`).
+- **Input History**: Navigate through your previous command inputs using the vertical arrow keys (Up/Down).
+- **Session Management**: Save and load chat histories. Uses a hidden `.historyList.json` file to index your sessions without cluttering your workspace.
 
 ## 🚀 Installation
 
