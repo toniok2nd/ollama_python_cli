@@ -223,6 +223,7 @@ def show_internal_options(console):
     /save => to save current CHAT
     /load => to load saved CHAT
     /settings => to show settings.json content and path
+    !   => to run shell command (e.g. !ls)
     EOF => to valide prompt input
     >> => show all code blocks available
     >>0 => show code block 0 and add it to clipboard buffer
@@ -298,7 +299,7 @@ async def main_async(argv: list[str] | None = None) -> int:
         
         # Internal commands for autocompletion
         internal_commands = [
-            'exit', '/?', '/save', '/load', '/settings', '/style', '/eof', '/!', '/auto', 'EOF', '>>', '||'
+            'exit', '/?', '/save', '/load', '/settings', '/style', '/eof', '!', '/auto', 'EOF', '>>', '||'
         ]
         
         class StartOfLineCompleter(Completer):
@@ -385,10 +386,10 @@ async def main_async(argv: list[str] | None = None) -> int:
                     console.print("[yellow]Settings file does not exist yet (using defaults).[/yellow]")
                 continue
 
-            if user_input.startswith('/!'):
-                cmd = user_input[2:].strip()
+            if user_input.startswith('!'):
+                cmd = user_input[1:].strip()
                 if not cmd:
-                    console.print("[yellow]Usage: /! <command>[/yellow]")
+                    console.print("[yellow]Usage: ! <command>[/yellow]")
                     continue
                 try:
                     # Run the command and capture output
@@ -409,6 +410,49 @@ async def main_async(argv: list[str] | None = None) -> int:
                 c=ChatManager()
                 c.save_file(chatname_input, model, messages)
                 last_save_file = chatname_input
+                continue
+
+            if user_input.lower() == '/load':
+                c = ChatManager()
+                if not c.historyList:
+                    console.print("[yellow]No saved chats found in historyList.json.[/yellow]")
+                    continue
+                
+                # Prepare list for fzf
+                # historyList elements: {"fileName": "...", "path": "..."}
+                try:
+                    display_names = [f"{item['fileName']} ({item['path']})" for item in c.historyList]
+                    input_str = '\n'.join(display_names)
+                    
+                    p = subprocess.Popen(['fzf', '--prompt=Select chat to load: '], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+                    stdout, _ = p.communicate(input=input_str)
+                    selected_line = stdout.strip()
+                    
+                    if selected_line:
+                        # Extract fileName (it's before the first space and parenthesis)
+                        # More robust: find the matching item in historyList
+                        selected_item = next((item for item in c.historyList if f"{item['fileName']} ({item['path']})" == selected_line), None)
+                        
+                        if selected_item:
+                            selected_path = selected_item['path']
+                            c.load_from_file(selected_path)
+                            model = c.get_model()
+                            
+                            loaded_history = c.data.get('history')
+                            if isinstance(loaded_history, str):
+                                messages = [{'role': 'user', 'content': loaded_history}]
+                            elif isinstance(loaded_history, list):
+                                messages = loaded_history
+                            
+                            last_save_file = selected_item['fileName']
+                            console.print(f"[green]Successfully loaded chat: {selected_item['fileName']}[/green]")
+                            console.print(f"Active model: [bold]{model}[/bold]")
+                        else:
+                            console.print("[red]Could not match selection to history list.[/red]")
+                    else:
+                        console.print("[yellow]Load cancelled.[/yellow]")
+                except Exception as e:
+                    console.print(f"[red]Error during load: {e}[/red]")
                 continue
 
             if user_input.lower() == '/auto':

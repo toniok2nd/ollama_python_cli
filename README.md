@@ -73,12 +73,12 @@ myollama --load previous_session.json
 | `exit` | Quit the CLI. |
 | `/?` | Show the help menu with internal options. |
 | `/save` | Save the current chat session to a JSON file. |
-| `/load` | Load a saved chat session. |
+| `/load` | Interactively select and load a saved chat session from history. |
 | `/settings` | Show the `settings.json` file content and path. |
 | `/style` | Interactively customize prompt colors (`style_b` and `style_g`). |
 | `/eof` | Change the multi-line input termination string (default `EOF`). |
 | `/auto` | Toggle automatic saving after each response (requires initial `/save`). |
-| `/! <cmd>`| Execute a shell command and see the output. |
+| `! <cmd>`| Execute a shell command and see the output (e.g., `!ls`). |
 | `>>` | List all code blocks from the last AI response. |
 | `>>[n]` | Show code block `n` and copy it to the clipboard (e.g., `>>0`). |
 | `||` | List all tables from the last AI response. |
