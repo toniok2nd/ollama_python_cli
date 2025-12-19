@@ -1,5 +1,5 @@
 from mcp import ClientSession, StdioServerParameters
-from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.completion import WordCompleter, Completer
 from markedownExtractor import MarkdownExtractor
 from mcp.client.stdio import stdio_client
 from prompt_toolkit.styles import Style
@@ -251,7 +251,18 @@ async def main_async(argv: list[str] | None = None) -> int:
         internal_commands = [
             'exit', '/?', '/save', '/load', 'EOF', '>>', '||'
         ]
-        completer = WordCompleter(internal_commands, ignore_case=True)
+        
+        class StartOfLineCompleter(Completer):
+            def __init__(self, words):
+                self.word_completer = WordCompleter(words, ignore_case=True)
+            def get_completions(self, document, complete_event):
+                # Only offer completions if we're at the very start of the line
+                # (allowing for leading whitespace if desired, but here we strictly check for no preceding spaces)
+                if ' ' in document.text_before_cursor:
+                    return
+                yield from self.word_completer.get_completions(document, complete_event)
+
+        completer = StartOfLineCompleter(internal_commands)
 
         while True:
             # We use prompt() synchronously because it's blocking anyway
