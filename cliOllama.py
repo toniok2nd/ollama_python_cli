@@ -268,10 +268,12 @@ async def main_async(argv: list[str] | None = None) -> int:
     async def run_loop(session=None):
         global style_b, style_g, settings
         nonlocal buffer, messages, mdl
+        last_save_file = None
+        auto_save_enabled = False
         
         # Internal commands for autocompletion
         internal_commands = [
-            'exit', '/?', '/save', '/load', '/style', '/eof', '/!', 'EOF', '>>', '||'
+            'exit', '/?', '/save', '/load', '/style', '/eof', '/!', '/auto', 'EOF', '>>', '||'
         ]
         
         class StartOfLineCompleter(Completer):
@@ -366,6 +368,16 @@ async def main_async(argv: list[str] | None = None) -> int:
                 chatname_input = await asyncio.to_thread(prompt, "enter the name of the chat to save:\n", style=style_g)
                 c=ChatManager()
                 c.save_file(chatname_input, model, messages)
+                last_save_file = chatname_input
+                continue
+
+            if user_input.lower() == '/auto':
+                if not last_save_file:
+                    console.print("[yellow]You must use /save at least once before enabling auto-save.[/yellow]")
+                else:
+                    auto_save_enabled = not auto_save_enabled
+                    status = "[green]enabled[/green]" if auto_save_enabled else "[red]disabled[/red]"
+                    console.print(f"Auto-save to [bold]{last_save_file}[/bold] is now {status}.")
                 continue
             # ... (other commands simplified for brevity or need porting) ...
             
@@ -390,6 +402,14 @@ async def main_async(argv: list[str] | None = None) -> int:
                     
                 mdl=MarkdownExtractor(current_response)
                 console.print("\n")
+
+                if auto_save_enabled and last_save_file:
+                    try:
+                        c = ChatManager()
+                        c.save_file(last_save_file, model, messages)
+                        console.print(f"[dim italic]Auto-saved to {last_save_file}[/dim italic]")
+                    except Exception as e:
+                        console.print(f"[red]Auto-save failed: {e}[/red]")
 
     # Entry point logic
     if args.enable_fs:
