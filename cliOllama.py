@@ -463,7 +463,43 @@ async def main_async(argv: list[str] | None = None) -> int:
                     status = "[green]enabled[/green]" if auto_save_enabled else "[red]disabled[/red]"
                     console.print(f"Auto-save to [bold]{last_save_file}[/bold] is now {status}.")
                 continue
-            # ... (other commands simplified for brevity or need porting) ...
+            if user_input.startswith('>>'):
+                if mdl is None:
+                    console.print("[yellow]No response generated yet to extract from.[/yellow]")
+                    continue
+                cmd_val = user_input[2:].strip()
+                if not cmd_val:
+                    mdl.print_code_blocks()
+                else:
+                    try:
+                        idx = int(cmd_val)
+                        mdl.print_code(idx)
+                        blocks = mdl.extract_code_blocks()
+                        if 0 <= idx < len(blocks):
+                            pyperclip.copy(blocks[idx]['code'])
+                            console.print("[dim]Code copied to clipboard.[/dim]")
+                    except ValueError:
+                        console.print("[red]Invalid index for >> command.[/red]")
+                continue
+
+            if user_input.startswith('||'):
+                if mdl is None:
+                    console.print("[yellow]No response generated yet to extract from.[/yellow]")
+                    continue
+                cmd_val = user_input[2:].strip()
+                if not cmd_val:
+                    mdl.print_tables()
+                else:
+                    try:
+                        idx = int(cmd_val)
+                        mdl.print_table(idx)
+                        tables = mdl.extract_tables()
+                        if 0 <= idx < len(tables):
+                            pyperclip.copy(tables[idx])
+                            console.print("[dim]Table copied to clipboard.[/dim]")
+                    except ValueError:
+                        console.print("[red]Invalid index for || command.[/red]")
+                continue
             
             buffer += user_input
 
