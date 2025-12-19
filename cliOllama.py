@@ -23,13 +23,34 @@ import sys
 import re
 
 
-# define style for prompt
-style_b = Style.from_dict({
-    '': '#ffffff bg:#0e49ba',  # Blue text
-})
-style_g = Style.from_dict({
-    '': '#ffffff bg:green',  # Green text
-})
+# Default settings and style management
+def load_settings():
+    settings_path = Path(__file__).parent / "settings.json"
+    defaults = {
+        "style_b": "#ffffff bg:#0e49ba",
+        "style_g": "#ffffff bg:green",
+        "eof_string": "EOF"
+    }
+    if settings_path.exists():
+        try:
+            with open(settings_path, 'r', encoding='utf-8') as f:
+                return {**defaults, **json.load(f)}
+        except Exception:
+            return defaults
+    return defaults
+
+def save_settings(settings_dict):
+    settings_path = Path(__file__).parent / "settings.json"
+    try:
+        with open(settings_path, 'w', encoding='utf-8') as f:
+            json.dump(settings_dict, f, indent=4)
+    except Exception as e:
+        print(f"Error saving settings: {e}", file=sys.stderr)
+
+# Initialize settings and styles
+settings = load_settings()
+style_b = Style.from_dict({'': settings['style_b']})
+style_g = Style.from_dict({'': settings['style_g']})
 
 async def run_chat_turn(model, messages, session=None):
     """Run a single turn of chat, handling tool calls if session is provided."""
@@ -229,7 +250,7 @@ async def main_async(argv: list[str] | None = None) -> int:
                 models_info = ollama.list()
                 model_names = [m['model'] for m in models_info.get('models', [])]
                 if not model_names:
-                     raise ValueError("No models found in Ollama.")
+                     raise ValueError("No models found inb Ollama.")
                 input_str = '\n'.join(model_names)
                 p = subprocess.Popen(['fzf'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
                 stdout, _ = p.communicate(input=input_str)
@@ -245,11 +266,12 @@ async def main_async(argv: list[str] | None = None) -> int:
 
     # Define the input loop function
     async def run_loop(session=None):
+        global style_b, style_g, settings
         nonlocal buffer, messages, mdl
         
         # Internal commands for autocompletion
         internal_commands = [
-            'exit', '/?', '/save', '/load', 'EOF', '>>', '||'
+            'exit', '/?', '/save', '/load', '/style', '/eof', '/!', 'EOF', '>>', '||'
         ]
         
         class StartOfLineCompleter(Completer):
@@ -283,6 +305,63 @@ async def main_async(argv: list[str] | None = None) -> int:
             if user_input.lower() == '/?':
                 show_internal_options(console)
                 continue
+            if user_input.lower() == '/style':
+                console.print("\n[bold cyan]Theme Customization[/bold cyan]")
+                target = await asyncio.to_thread(prompt, "Change [b]lue or [g]reen style? (b/g): ", style=style_g)
+                if target.lower() not in ['b', 'g']:
+                    console.print("[red]Invalid selection.[/red]")
+                    continue
+                
+                current_color = settings['style_b'] if target.lower() == 'b' else settings['style_g']
+                console.print(f"Current color: {current_color}")
+                new_color = await asyncio.to_thread(prompt, "Enter new style (e.g. '#ffffff bg:#ff0000'): ", style=style_g)
+                
+                if new_color:
+                    try:
+                        # Test if style is valid
+                        Style.from_dict({'': new_color})
+                        if target.lower() == 'b':
+                            settings['style_b'] = new_color
+                            style_b = Style.from_dict({'': new_color})
+                        else:
+                            settings['style_g'] = new_color
+                            style_g = Style.from_dict({'': new_color})
+                        
+                        save_settings(settings)
+                        console.print("[green]Style updated and saved![/green]")
+                    except Exception as e:
+                        console.print(f"[red]Error: Invalid style string format. ({e})[/red]")
+                continue
+
+            if user_input.lower() == '/eof':
+                console.print("\n[bold cyan]EOF Customization[/bold cyan]")
+                console.print(f"Current EOF string: {settings.get('eof_string', 'EOF')}")
+                new_eof = await asyncio.to_thread(prompt, "Enter new EOF string: ", style=style_g)
+                if new_eof:
+                    settings['eof_string'] = new_eof.strip()
+                    save_settings(settings)
+                    console.print(f"[green]EOF string updated to '{settings['eof_string']}' and saved![/green]")
+                continue
+
+            if user_input.startswith('/!'):
+                cmd = user_input[2:].strip()
+                if not cmd:
+                    console.print("[yellow]Usage: /! <command>[/yellow]")
+                    continue
+                try:
+                    # Run the command and capture output
+                    # We use shell=True to allow piping and expansions
+                    result = subprocess.run(cmd, shell=True, text=True, capture_output=True)
+                    if result.stdout:
+                        console.print(result.stdout.strip())
+                    if result.stderr:
+                        console.print(f"[red]{result.stderr.strip()}[/red]")
+                    if result.returncode != 0:
+                        console.print(f"[bold red]Command exited with code {result.returncode}[/bold red]")
+                except Exception as e:
+                    console.print(f"[red]Error executing command: {e}[/red]")
+                continue
+
             if user_input.lower() == '/save':
                 chatname_input = await asyncio.to_thread(prompt, "enter the name of the chat to save:\n", style=style_g)
                 c=ChatManager()
@@ -292,8 +371,9 @@ async def main_async(argv: list[str] | None = None) -> int:
             
             buffer += user_input
 
-            if "EOF" in buffer:
-                content, _, _ = buffer.partition("EOF")
+            eof_marker = settings.get('eof_string', 'EOF')
+            if eof_marker in buffer:
+                content, _, _ = buffer.partition(eof_marker)
                 messages.append({'role': 'user', 'content': content})
                 buffer = ""
 
