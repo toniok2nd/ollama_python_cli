@@ -74,6 +74,7 @@ myollama --load previous_session.json
 | `/?` | Show the help menu with internal options. |
 | `/save` | Save the current chat session to a JSON file. |
 | `/load` | Load a saved chat session. |
+| `/settings` | Show the `settings.json` file content and path. |
 | `/style` | Interactively customize prompt colors (`style_b` and `style_g`). |
 | `/eof` | Change the multi-line input termination string (default `EOF`). |
 | `/auto` | Toggle automatic saving after each response (requires initial `/save`). |

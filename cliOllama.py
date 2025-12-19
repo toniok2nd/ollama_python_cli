@@ -97,6 +97,8 @@ async def run_chat_turn(model, messages, session=None):
                      final_message['tool_calls'].append(tc)
 
         # After stream finishes
+        if not final_message['tool_calls']:
+            del final_message['tool_calls']
         messages.append(final_message)
 
         if not final_message.get('tool_calls'):
@@ -116,17 +118,26 @@ async def run_chat_turn(model, messages, session=None):
             try:
                 # Call MCP tool
                 result = await session.call_tool(fn_name, arguments=fn_args)
-                tool_output = result.content[0].text # Assuming TextContent
                 
-                # Append tool result to messages
+                # Extract text tool output robustly
+                tool_output = ""
+                for content_item in result.content:
+                    if hasattr(content_item, 'text'):
+                        tool_output += content_item.text
+                    elif isinstance(content_item, dict) and 'text' in content_item:
+                        tool_output += content_item['text']
+                
+                # Append tool result to messages with correlation name
                 messages.append({
                     'role': 'tool',
                     'content': tool_output,
+                    'name': fn_name
                 })
             except Exception as e:
                 messages.append({
                     'role': 'tool',
-                    'content': f"Error executing tool: {e}"
+                    'content': f"Error executing tool: {e}",
+                    'name': fn_name
                 })
                 yield f" [Error: {e}]"
         
@@ -198,6 +209,7 @@ def show_internal_options(console):
     /?   => to show this help
     /save => to save current CHAT
     /load => to load saved CHAT
+    /settings => to show settings.json content and path
     EOF => to valide prompt input
     >> => show all code blocks available
     >>0 => show code block 0 and add it to clipboard buffer
@@ -273,7 +285,7 @@ async def main_async(argv: list[str] | None = None) -> int:
         
         # Internal commands for autocompletion
         internal_commands = [
-            'exit', '/?', '/save', '/load', '/style', '/eof', '/!', '/auto', 'EOF', '>>', '||'
+            'exit', '/?', '/save', '/load', '/settings', '/style', '/eof', '/!', '/auto', 'EOF', '>>', '||'
         ]
         
         class StartOfLineCompleter(Completer):
@@ -343,6 +355,21 @@ async def main_async(argv: list[str] | None = None) -> int:
                     settings['eof_string'] = new_eof.strip()
                     save_settings(settings)
                     console.print(f"[green]EOF string updated to '{settings['eof_string']}' and saved![/green]")
+                continue
+
+            if user_input.lower() == '/settings':
+                settings_path = Path(__file__).parent / "settings.json"
+                console.print(f"\n[bold cyan]Settings Configuration[/bold cyan]")
+                console.print(f"Path: [yellow]{settings_path}[/yellow]")
+                if settings_path.exists():
+                    try:
+                        with open(settings_path, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                            console.print("\n" + content)
+                    except Exception as e:
+                        console.print(f"[red]Error reading settings file: {e}[/red]")
+                else:
+                    console.print("[yellow]Settings file does not exist yet (using defaults).[/yellow]")
                 continue
 
             if user_input.startswith('/!'):
