@@ -293,7 +293,7 @@ async def main_async(argv: list[str] | None = None) -> int:
     # Define the input loop function
     async def run_loop(session=None):
         global style_b, style_g, settings
-        nonlocal buffer, messages, mdl
+        nonlocal buffer, messages, mdl, model
         last_save_file = None
         auto_save_enabled = False
         
