@@ -415,7 +415,7 @@ async def main_async(argv: list[str] | None = None) -> int:
             if user_input.lower() == '/load':
                 c = ChatManager()
                 if not c.historyList:
-                    console.print("[yellow]No saved chats found in historyList.json.[/yellow]")
+                    console.print("[yellow]No saved chats found in .historyList.json.[/yellow]")
                     continue
                 
                 # Prepare list for fzf

@@ -12,7 +12,7 @@ from markedownExtractor import MarkdownExtractor
 
 class TestChatManager(unittest.TestCase):
     def setUp(self):
-        # Prevent ChatManager from trying to load historyList.json on init during tests
+        # Prevent ChatManager from trying to load .historyList.json on init during tests
         # We can pass None to _file_path in init if the class supports it, 
         # based on code: def __init__(self,_file_path...='historyList.json')
         # if _file_path != None: load...

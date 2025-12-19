@@ -12,7 +12,7 @@ class ChatManager:
     Manages loading and saving of chat history and model selection.
     Stores a history list of chats in a central JSON file and individual chat sessions in separate files.
     """
-    def __init__(self,_file_path: Union[str, Path]='historyList.json'):
+    def __init__(self,_file_path: Union[str, Path]='.historyList.json'):
         """
         Initialize the ChatManager.
         
@@ -85,7 +85,12 @@ class ChatManager:
             with open(path,'w') as f:
                 data = {'model': _model, 'history': _history}
                 json.dump(data, f)
-            self.historyList.append({"fileName":_filename,"path":str(path)}) 
+            
+            # De-duplication: Remove existing entry for same path if it exists
+            new_entry = {"fileName": _filename, "path": str(path)}
+            self.historyList = [item for item in self.historyList if item.get('path') != str(path)]
+            self.historyList.append(new_entry) 
+            
             self.save_history_file()
         except json.JSONDecodeError as exc:
             raise ChatManagerError(f"Error saving json file {path}: {exc}") from exc
