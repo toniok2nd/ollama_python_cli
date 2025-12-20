@@ -1,9 +1,11 @@
 # Ollama Python CLI (via official ollama library)
 
-A powerful, feature-rich Python CLI wrapper for the official `ollama` library. This tool enhances your local Ollama experience with interactive model selection, multi-line input, custom themes, and Model Context Protocol (MCP) integration.
+A powerful, feature-rich Python CLI wrapper for the official `ollama` library. This tool enhances your local Ollama experience with interactive model selection, multi-line input, custom themes, image generation, and Model Context Protocol (MCP) integration.
 
 ## ✨ Key Features
 
+- **Image Generation**: Generate pictures directly from your chat using Pollinations AI (via MCP).
+- **Multi-Server MCP Support**: Run multiple tool servers simultaneously (e.g., File System and Image Gen).
 - **Interactive Model Selection**: Uses `fzf` to let you choose from your locally available models.
 - **Multi-line Input**: Supports multi-line prompts with a customizable EOF marker (default is `EOF`).
 - **MCP Integration**: Full support for Model Context Protocol. Includes a built-in File System server to let the LLM read and write files in your workspace.
@@ -60,6 +62,18 @@ myollama --enable-fs
 Specify a working directory:
 ```bash
 myollama --enable-fs /path/to/project
+```
+
+### Image Generation (MCP)
+Enable the image generation tools to allow the AI to create pictures. No API key is required.
+```bash
+myollama --enable-image
+```
+
+### Combined Mode (Recommended)
+You can run both servers at once to allow the AI to generate images and save them to your project:
+```bash
+myollama --enable-fs --enable-image
 ```
 
 ### Load a Previous Chat

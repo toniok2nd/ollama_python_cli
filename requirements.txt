@@ -1,5 +1,6 @@
+rich
 prompt_toolkit
 pyperclip
 ollama
-rich
 mcp
+httpx

@@ -1,5 +1,6 @@
-from mcp import ClientSession, StdioServerParameters
 from prompt_toolkit.completion import WordCompleter, Completer
+from mcp import ClientSession, StdioServerParameters
+from prompt_toolkit import PromptSession, prompt
 from markedownExtractor import MarkdownExtractor
 from mcp.client.stdio import stdio_client
 from prompt_toolkit.styles import Style
@@ -7,7 +8,6 @@ from mcp.types import CallToolResult
 from typing import Any, Dict, Union 
 from chatManager import ChatManager
 from rich.markdown import Markdown
-from prompt_toolkit import PromptSession, prompt
 from rich.console import Console
 from rich.emoji import Emoji
 from rich.text import Text
@@ -52,29 +52,34 @@ settings = load_settings()
 style_b = Style.from_dict({'': settings['style_b']})
 style_g = Style.from_dict({'': settings['style_g']})
 
-async def run_chat_turn(model, messages, session=None):
-    """Run a single turn of chat, handling tool calls if session is provided."""
+async def run_chat_turn(model, messages, sessions=None):
+    """Run a single turn of chat, handling tool calls if sessions are provided."""
     
-    # Get available tools if session is present
+    # Get available tools from all sessions
     tools = []
-    if session:
-        result = await session.list_tools()
-        # Convert MCP tools to Ollama tool format
-        for tool in result.tools:
-            tools.append({
-                'type': 'function',
-                'function': {
-                    'name': tool.name,
-                    'description': tool.description,
-                    'parameters': tool.inputSchema
-                }
-            })
-
+    tool_to_session = {} # Map tool name to its respective session
     
+    if sessions:
+        for session in sessions:
+            try:
+                result = await session.list_tools()
+                for tool in result.tools:
+                    tools.append({
+                        'type': 'function',
+                        'function': {
+                            'name': tool.name,
+                            'description': tool.description,
+                            'parameters': tool.inputSchema
+                        }
+                    })
+                    tool_to_session[tool.name] = session
+            except Exception as e:
+                # Log or ignore if one server fails
+                continue
+
     # We will use a dedicated loop for the tool-calling cycle
     while True:
         # Call Ollama
-        # Note: ollama.chat returns an iterator if stream=True
         stream = ollama.chat(model=model, messages=messages, tools=tools if tools else None, stream=True)
         
         final_message = {'role': 'assistant', 'content': '', 'tool_calls': []}
@@ -88,10 +93,6 @@ async def run_chat_turn(model, messages, session=None):
 
             # Handle tool calls (accumulate)
             if 'tool_calls' in chunk.get('message', {}):
-                # This assumes tool_calls come in one chunk or need merging. 
-                # Ollama python lib might normalize this?
-                # Actually, standard behavior is full tool call in one message or accumulated.
-                # Let's accumulate. 
                 tcs = chunk['message']['tool_calls']
                 for tc in tcs:
                      # Convert to dict to ensure JSON serializability
@@ -118,14 +119,21 @@ async def run_chat_turn(model, messages, session=None):
             break # No tools called, we are done
         
         # We have tool calls
-        if not session:
-            yield "\n[Error: Tool called but no MCP session active]"
-            break
-
         # Execute tools
         for tool_call in final_message['tool_calls']:
             fn_name = tool_call['function']['name']
             fn_args = tool_call['function']['arguments']
+            
+            session = tool_to_session.get(fn_name)
+            if not session:
+                messages.append({
+                    'role': 'tool',
+                    'content': f"Error: Tool '{fn_name}' not found in any active session.",
+                    'name': fn_name
+                })
+                yield f"\n[Error: Tool {fn_name} not found]"
+                continue
+
             yield f"\n[Executing tool: {fn_name}...]"
             
             try:
@@ -139,6 +147,8 @@ async def run_chat_turn(model, messages, session=None):
                         tool_output += content_item.text
                     elif isinstance(content_item, dict) and 'text' in content_item:
                         tool_output += content_item['text']
+                    elif hasattr(content_item, 'data'): # Handle ImageContent if needed (not rendering yet)
+                        tool_output += f"\n[Image output received]"
                 
                 # Append tool result to messages with correlation name
                 messages.append({
@@ -209,6 +219,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         dest='enable_fs',
         help="Enable MCP file system tools in the specified directory (defaults to current directory).",
+    )
+
+    parser.add_argument(
+        "--enable-image",
+        action='store_true',
+        help="Enable MCP image generation tools.",
     )
 
     return parser
@@ -291,7 +307,7 @@ async def main_async(argv: list[str] | None = None) -> int:
     console.print(f"Model selected:  {model}", style="bold white on green")
 
     # Define the input loop function
-    async def run_loop(session=None):
+    async def run_loop(sessions=None):
         global style_b, style_g, settings
         nonlocal buffer, messages, mdl, model
         last_save_file = None
@@ -510,7 +526,7 @@ async def main_async(argv: list[str] | None = None) -> int:
                 current_response = ""
                 with Live(console=console, refresh_per_second=10, transient=False) as live:
                     # Async generator iteration
-                    async for token in run_chat_turn(model, messages, session):
+                    async for token in run_chat_turn(model, messages, sessions):
                         current_response += token
                         try:
                             md = Markdown(current_response)
@@ -529,17 +545,34 @@ async def main_async(argv: list[str] | None = None) -> int:
                     except Exception as e:
                         console.print(f"[red]Auto-save failed: {e}[/red]")
 
-    # Entry point logic
-    if args.enable_fs:
-        server_path = Path(__file__).parent / "simple_fs_server.py"
-        # Pass the workdir as an argument to the server script
-        server_params = StdioServerParameters(command="python", args=[str(server_path), str(args.enable_fs)])
-        async with stdio_client(server_params) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                await run_loop(session)
-    else:
-        await run_loop(None)
+    # Entry point logic for MCP servers
+    active_sessions = []
+    
+    # helper for server context managers
+    from contextlib import AsyncExitStack
+    
+    async with AsyncExitStack() as stack:
+        # 1. File System Server
+        if args.enable_fs:
+            server_path = Path(__file__).parent / "simple_fs_server.py"
+            server_params = StdioServerParameters(command="python", args=[str(server_path), str(args.enable_fs)])
+            # Use stack to manage context lifecycle
+            read, write = await stack.enter_async_context(stdio_client(server_params))
+            session = await stack.enter_async_context(ClientSession(read, write))
+            await session.initialize()
+            active_sessions.append(session)
+
+        # 2. Image Generation Server
+        if args.enable_image:
+            server_path = Path(__file__).parent / "image_gen_server.py"
+            server_params = StdioServerParameters(command="python", args=[str(server_path)])
+            read, write = await stack.enter_async_context(stdio_client(server_params))
+            session = await stack.enter_async_context(ClientSession(read, write))
+            await session.initialize()
+            active_sessions.append(session)
+
+        # Run the UI loop
+        await run_loop(active_sessions if active_sessions else None)
 
 def main():
     asyncio.run(main_async())
