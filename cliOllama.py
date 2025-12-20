@@ -169,8 +169,6 @@ async def run_chat_turn(model, messages, sessions=None):
         # Loop back to send tool results to model and get next response
 
 
-
-
 def existing_file(path: str) -> Path:
     p = Path(path).expanduser().resolve()
     if not p.is_file():
@@ -223,7 +221,45 @@ def build_parser() -> argparse.ArgumentParser:
         help="Enable MCP file system tools in the specified directory (defaults to current directory).",
     )
 
+    curr_dir = Path(__file__).parent
+    
+    if (curr_dir / "image_gen_server.py").exists():
+        parser.add_argument(
+            "--enable-image",
+            action='store_true',
+            help="Enable MCP image generation tools.",
+        )
 
+    if (curr_dir / "voice_server.py").exists():
+        parser.add_argument(
+            "--enable-voice",
+            action='store_true',
+            help="Enable MCP voice/speech tools.",
+        )
+
+    if (curr_dir / "multimedia_server.py").exists():
+        parser.add_argument(
+            "--enable-webcam",
+            action='store_true',
+            help="Enable MCP webcam tools.",
+        )
+        parser.add_argument(
+            "--enable-stt",
+            "--enable-tss",
+            action='store_true',
+            help="Enable MCP speech-to-text tools.",
+        )
+
+    if (curr_dir / "openshot_server.py").exists():
+        parser.add_argument(
+            "--enable-video",
+            action='store_true',
+            help="Enable MCP video editing tools (OpenShot/FFmpeg).",
+        )
+
+    return parser
+
+# define internal options
 def show_internal_options(console):
     options="""
     Here are your options
@@ -239,6 +275,7 @@ def show_internal_options(console):
     >>0 => show code block 0 and add it to clipboard buffer
     || => show all tables available
     ||0 => show table 0 and add it to clipboard buffer
+    << => toggle voice recording (requires --enable-tss)
     """
     console.print(options, style="red")
 
@@ -309,7 +346,7 @@ async def main_async(argv: list[str] | None = None) -> int:
         
         # Internal commands for autocompletion
         internal_commands = [
-            'exit', '/?', '/save', '/load', '/settings', '/style', '/eof', '!', '/auto', 'EOF', '>>', '||'
+            'exit', '/?', '/save', '/load', '/settings', '/style', '/eof', '!', '/auto', 'EOF', '>>', '||', '<<'
         ]
         
         class StartOfLineCompleter(Completer):
@@ -628,7 +665,7 @@ async def main_async(argv: list[str] | None = None) -> int:
                 console.print(f"[bold red]Error:[/] Voice server failed: {e}")
 
         # 4. Multimedia Server (Webcam & STT)
-        if args.enable_webcam or args.enable_stt:
+        if hasattr(args, 'enable_webcam') and (args.enable_webcam or args.enable_stt):
             server_path = Path(__file__).parent / "multimedia_server.py"
             server_params = StdioServerParameters(command="python", args=[str(server_path)])
             try:
@@ -640,7 +677,7 @@ async def main_async(argv: list[str] | None = None) -> int:
                  console.print(f"[bold red]Error:[/] Multimedia server (Webcam/STT) failed: {e}")
 
         # 5. Video Server (OpenShot)
-        if args.enable_video:
+        if hasattr(args, 'enable_video') and args.enable_video:
             server_path = Path(__file__).parent / "openshot_server.py"
             server_params = StdioServerParameters(command="python", args=[str(server_path)])
             try:
@@ -659,4 +696,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
