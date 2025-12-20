@@ -49,11 +49,11 @@ def get_config() -> Dict[str, str]:
 
 def get_spotify_client():
     if spotipy is None:
-        return None
+        raise Exception("spotipy library not installed")
     
     config = get_config()
     if not config["client_id"] or not config["client_secret"]:
-        return None
+        raise Exception("Spotify credentials missing in settings.json. Run /config-spotify in the CLI.")
 
     scope = "user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-modify-public playlist-modify-private"
     
@@ -66,9 +66,15 @@ def get_spotify_client():
         redirect_uri=config["redirect_uri"],
         scope=scope,
         cache_path=str(cache_path),
-        open_browser=True # Attempt to open browser automatically on desktop systems
+        open_browser=False # NEVER open browser in background server
     )
     
+    # Explicitly check for token to avoid hanging on a hidden prompt
+    token_info = auth_manager.get_cached_token()
+    if not token_info:
+        auth_url = auth_manager.get_authorize_url()
+        raise Exception(f"Authentication required. Please visit this URL to authorize, then run /config-spotify and paste the result: {auth_url}")
+        
     return spotipy.Spotify(auth_manager=auth_manager)
 
 @server.list_tools()

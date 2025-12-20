@@ -322,7 +322,41 @@ async def setup_spotify_config(console, settings_dict):
     settings_dict['SPOTIPY_CLIENT_SECRET'] = sec.strip()
     settings_dict['SPOTIPY_REDIRECT_URI'] = red.strip() or "http://127.0.0.1:8888/callback"
     save_settings(settings_dict)
-    console.print("[green]Spotify settings saved![/green]")
+    
+    # Attempt to trigger OAuth flow immediately
+    console.print("\n[yellow]Attempting to authenticate and save token...[/yellow]")
+    try:
+        from spotipy.oauth2 import SpotifyOAuth
+        scope = "user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-modify-public playlist-modify-private"
+        cache_path = Path(__file__).parent / ".spotify_cache"
+        
+        auth_manager = SpotifyOAuth(
+            client_id=settings_dict['SPOTIPY_CLIENT_ID'],
+            client_secret=settings_dict['SPOTIPY_CLIENT_SECRET'],
+            redirect_uri=settings_dict['SPOTIPY_REDIRECT_URI'],
+            scope=scope,
+            cache_path=str(cache_path),
+            open_browser=False
+        )
+        
+        auth_url = auth_manager.get_authorize_url()
+        console.print(f"\n1. Please visit this URL in your browser:\n[bold cyan]{auth_url}[/bold cyan]")
+        console.print("2. Log in and agree to permissions.")
+        console.print("3. You will be redirected to your Redirect URI (it might fail as a page, that's fine).")
+        response_url = await asyncio.to_thread(prompt, "4. Paste the FULL URL you were redirected to here: ")
+        
+        if response_url:
+            code = auth_manager.parse_response_code(response_url.strip())
+            token = auth_manager.get_access_token(code)
+            if token:
+                console.print("[green]Authentication successful! Token saved.[/green]")
+            else:
+                console.print("[red]Failed to get access token.[/red]")
+    except Exception as e:
+        console.print(f"[red]Authentication failed: {e}[/red]")
+        console.print("[yellow]You can still try to run Spotify commands; they will provide the URL if needed.[/yellow]")
+
+    console.print("[green]Spotify settings updated![/green]")
 
 async def setup_konyks_config(console, settings_dict):
     console.print("\n[bold cyan]Konyks (Tuya) Configuration[/bold cyan]")
