@@ -256,7 +256,7 @@ if [ -f "${REPO_BASE}/${REQ_FILE}" ]; then
 else
     log "Warning: ${REQ_FILE} not found. Falling back to core packages..."
     pip install --upgrade pip setuptools wheel
-    pip install rich prompt_toolkit pyperclip ollama mcp
+    pip install rich prompt_toolkit pyperclip ollama mcp argcomplete
 fi
 
 # ---------------------------------------------------------------
@@ -275,6 +275,7 @@ WRAPPER_PATH="${WRAPPER_DIR}/myollama"
 # Create a tiny wrapper that forwards to the virtualenv python interpreter
 cat >"$WRAPPER_PATH" <<'EOF'
 #!/usr/bin/env bash
+# PYTHON_ARGCOMPLETE_OK
 # Wrapper for ollama_python_cli → cliOllama.py
 # All arguments are passed through unchanged.
 
@@ -305,20 +306,37 @@ chmod +x "$WRAPPER_PATH"
 log "Wrapper installed to $WRAPPER_PATH"
 
 # ---------------------------------------------------------------
-# 7. Ensure wrapper directory is on the user's $PATH
+# 7. Generate Bash Autocompletion Script
 # ---------------------------------------------------------------
-if [[ ":$PATH:" != *":${WRAPPER_DIR}:"* ]]; then
-    warn "Directory $WRAPPER_DIR is NOT currently on your \$PATH."
+COMPLETION_FILE="${REPO_BASE}/myollama_completion.bash"
+log "Generating bash autocompletion script..."
+if "${VENV_DIR}/bin/python" -m argcomplete.scripts.register_python_argcomplete myollama > "$COMPLETION_FILE" 2>/dev/null; then
+    log "✅ Autocompletion script generated at $COMPLETION_FILE"
+else
+    warn "Failed to generate autocompletion script automatically."
+fi
+
+# ---------------------------------------------------------------
+# 8. Ensure wrapper directory is on the user's $PATH & source completion
+# ---------------------------------------------------------------
+if [[ ":$PATH:" != *":${WRAPPER_DIR}:"* ]] || ! grep -q "myollama_completion.bash" "${HOME}/.bashrc" 2>/dev/null; then
     if [ -w "${HOME}/.bashrc" ]; then
-        echo '' >> "${HOME}/.bashrc"
-        echo "# Added by ollama_python_cli installer" >> "${HOME}/.bashrc"
-        echo "export PATH=\"${WRAPPER_DIR}:\$PATH\"" >> "${HOME}/.bashrc"
-        log "Appended PATH export to ${HOME}/.bashrc"
-        log "Run 'source ~/.bashrc' or open a new terminal to use the command."
+        if [[ ":$PATH:" != *":${WRAPPER_DIR}:"* ]]; then
+            echo '' >> "${HOME}/.bashrc"
+            echo "# Added by ollama_python_cli installer" >> "${HOME}/.bashrc"
+            echo "export PATH=\"${WRAPPER_DIR}:\$PATH\"" >> "${HOME}/.bashrc"
+            log "Appended PATH export to ${HOME}/.bashrc"
+        fi
+        
+        if ! grep -q "myollama_completion.bash" "${HOME}/.bashrc" 2>/dev/null; then
+            echo "[ -f \"$COMPLETION_FILE\" ] && source \"$COMPLETION_FILE\"" >> "${HOME}/.bashrc"
+            log "Appended autocompletion sourcing to ${HOME}/.bashrc"
+        fi
+        log "Run 'source ~/.bashrc' or open a new terminal to use the command with autocompletion."
     else
-        warn "Could not automatically modify PATH – add ${WRAPPER_DIR} to your shell's PATH manually."
+        warn "Could not automatically modify .bashrc – please add ${WRAPPER_DIR} to PATH and source $COMPLETION_FILE manually."
     fi
 else
-    log "Wrapper directory already on PATH."
+    log "Wrapper directory already on PATH and autocompletion already sourced."
 fi
 log "Done."

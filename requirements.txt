@@ -3,3 +3,4 @@ prompt_toolkit
 pyperclip
 ollama
 mcp
+argcomplete

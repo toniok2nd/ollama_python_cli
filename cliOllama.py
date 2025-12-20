@@ -1,3 +1,4 @@
+# PYTHON_ARGCOMPLETE_OK
 from prompt_toolkit.completion import WordCompleter, Completer
 from mcp import ClientSession, StdioServerParameters
 from prompt_toolkit import PromptSession, prompt
@@ -21,6 +22,10 @@ import asyncio
 import json
 import sys
 import re
+import argcomplete
+
+
+# Default settings and style management
 
 
 # Default settings and style management
@@ -197,7 +202,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # -m / --model   : a free‑form string (e.g. "resnet50", "my_custom_model")
-    parser.add_argument(
+    model_arg = parser.add_argument(
         "-m",
         "--model",
         type=str,
@@ -205,6 +210,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Name or identifier of the model to use.",
         metavar="MODEL",
     )
+    
+    # Add dynamic completion for model names if ollama is available
+    def model_completer(prefix, **kwargs):
+        try:
+            models_info = ollama.list()
+            return [m['model'] for m in models_info.get('models', []) if m['model'].startswith(prefix)]
+        except:
+            return []
+    
+    model_arg.completer = model_completer
 
     # -l / --load   : a file path that must exist on the filesystem
     parser.add_argument(
@@ -310,6 +325,7 @@ def show_internal_options(console):
 async def main_async(argv: list[str] | None = None) -> int:
     # Init parser
     parser = build_parser()
+    argcomplete.autocomplete(parser)
     args = parser.parse_args(argv)
     # Init console
     console = Console()
