@@ -31,7 +31,7 @@ def get_config() -> Dict[str, str]:
     config = {
         "client_id": os.environ.get("SPOTIPY_CLIENT_ID", ""),
         "client_secret": os.environ.get("SPOTIPY_CLIENT_SECRET", ""),
-        "redirect_uri": os.environ.get("SPOTIPY_REDIRECT_URI", "http://localhost:8888/callback"),
+        "redirect_uri": os.environ.get("SPOTIPY_REDIRECT_URI", "http://127.0.0.1:8888/callback"),
     }
 
     # Try loading from settings.json if environment variables are missing
@@ -66,7 +66,7 @@ def get_spotify_client():
         redirect_uri=config["redirect_uri"],
         scope=scope,
         cache_path=str(cache_path),
-        open_browser=False # We are in a CLI/headful context, user might need to paste URL
+        open_browser=True # Attempt to open browser automatically on desktop systems
     )
     
     return spotipy.Spotify(auth_manager=auth_manager)

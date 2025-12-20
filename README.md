@@ -120,12 +120,16 @@ Some MCP servers (Full tier) require credentials. You can set them as **Environm
 
 #### 🎵 Spotify
 1. Create an app on the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
-2. Set the Redirect URI to `http://localhost:8888/callback` (or your preferred port).
+2. Set the Redirect URI to `http://127.0.0.1:8888/callback` (or your preferred port).
 3. **Configuration**:
    - `SPOTIPY_CLIENT_ID`: Your Spotify Client ID.
    - `SPOTIPY_CLIENT_SECRET`: Your Spotify Client Secret.
    - `SPOTIPY_REDIRECT_URI`: Should match your dashboard setting.
-   
+
+> [!TIP]
+> **Why `127.0.0.1` instead of `localhost`?**
+> Spotify and many modern browsers have deprecated the string `localhost` for OAuth redirect URIs due to security policies. Using the explicit loopback IP `127.0.0.1` allows you to continue using unencrypted HTTP for local development.
+
 #### 🏠 Konyks / Tuya Smart Home
 1. Create a project on the [Tuya IoT Platform](https://iot.tuya.com/).
 2. Enable the **Core Control** and **Authorization Token Management** APIs.
