@@ -312,19 +312,25 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 # Configuration Helpers
-async def setup_spotify_config(console, settings_dict):
+async def setup_spotify_config(console, settings_dict, initial_arg=None):
     console.print("\n[bold cyan]Spotify Configuration[/bold cyan]")
-    cid = await asyncio.to_thread(prompt, "Enter SPOTIPY_CLIENT_ID: ", default=settings_dict.get('SPOTIPY_CLIENT_ID', ''))
-    sec = await asyncio.to_thread(prompt, "Enter SPOTIPY_CLIENT_SECRET: ", default=settings_dict.get('SPOTIPY_CLIENT_SECRET', ''))
-    red = await asyncio.to_thread(prompt, "Enter SPOTIPY_REDIRECT_URI: ", default=settings_dict.get('SPOTIPY_REDIRECT_URI', 'http://127.0.0.1:8888/callback'))
     
-    settings_dict['SPOTIPY_CLIENT_ID'] = cid.strip()
-    settings_dict['SPOTIPY_CLIENT_SECRET'] = sec.strip()
-    settings_dict['SPOTIPY_REDIRECT_URI'] = red.strip()
-    save_settings(settings_dict)
+    # Only ask for IDs if they are missing or if no arg provided
+    cid = settings_dict.get('SPOTIPY_CLIENT_ID', '')
+    sec = settings_dict.get('SPOTIPY_CLIENT_SECRET', '')
+    red = settings_dict.get('SPOTIPY_REDIRECT_URI', 'http://127.0.0.1:8888/callback')
+
+    if not initial_arg:
+        cid = await asyncio.to_thread(prompt, "Enter SPOTIPY_CLIENT_ID: ", default=cid)
+        sec = await asyncio.to_thread(prompt, "Enter SPOTIPY_CLIENT_SECRET: ", default=sec)
+        red = await asyncio.to_thread(prompt, "Enter SPOTIPY_REDIRECT_URI: ", default=red)
+        
+        settings_dict['SPOTIPY_CLIENT_ID'] = cid.strip()
+        settings_dict['SPOTIPY_CLIENT_SECRET'] = sec.strip()
+        settings_dict['SPOTIPY_REDIRECT_URI'] = red.strip()
+        save_settings(settings_dict)
     
-    # Attempt to trigger OAuth flow immediately
-    console.print("\n[yellow]Attempting to authenticate and save token...[/yellow]")
+    # Attempt to trigger OAuth flow
     try:
         from spotipy.oauth2 import SpotifyOAuth
         scope = "user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-modify-public playlist-modify-private"
@@ -339,14 +345,23 @@ async def setup_spotify_config(console, settings_dict):
             open_browser=False
         )
         
-        auth_url = auth_manager.get_authorize_url()
-        console.print(f"\n1. Please visit this URL in your browser:\n[bold cyan]{auth_url}[/bold cyan]")
-        console.print("2. Log in and agree to permissions.")
-        console.print("3. You will be redirected to your Redirect URI (it might fail as a page, that's fine).")
-        response_url = await asyncio.to_thread(prompt, "4. Paste the FULL URL you were redirected to here: ")
+        response_url = initial_arg
+        if not response_url:
+            auth_url = auth_manager.get_authorize_url()
+            console.print(f"\n1. Please visit this URL in your browser:\n[bold cyan]{auth_url}[/bold cyan]")
+            console.print("2. Log in and agree to permissions.")
+            console.print("3. You will be redirected to your Redirect URI.")
+            response_url = await asyncio.to_thread(prompt, "4. Paste the FULL URL or the CODE you were redirected to here: ")
         
         if response_url:
-            code = auth_manager.parse_response_code(response_url.strip())
+            response_url = response_url.strip()
+            # If it's just the code (no http), spotipy might need a bit of help or we can try to guess
+            if not response_url.startswith("http"):
+                # Treat as raw code
+                code = response_url
+            else:
+                code = auth_manager.parse_response_code(response_url)
+                
             token = auth_manager.get_access_token(code)
             if token:
                 console.print("[green]Authentication successful! Token saved.[/green]")
@@ -354,7 +369,7 @@ async def setup_spotify_config(console, settings_dict):
                 console.print("[red]Failed to get access token.[/red]")
     except Exception as e:
         console.print(f"[red]Authentication failed: {e}[/red]")
-        console.print("[yellow]You can still try to run Spotify commands; they will provide the URL if needed.[/yellow]")
+        console.print("[yellow]Tip: Make sure you copied the FULL URL or just the 'code=' part correctly.[/yellow]")
 
     console.print("[green]Spotify settings updated![/green]")
 
@@ -542,12 +557,15 @@ async def main_async(argv: list[str] | None = None) -> int:
                     is_recording = False
                 continue
 
-            if user_input.lower() == 'exit':
+            # Internal Commands (Direct Execution)
+            cmd_lower = user_input.lower().strip()
+            
+            if cmd_lower == 'exit':
                 break
-            if user_input.lower() == '/?':
+            if cmd_lower == '/?':
                 show_internal_options(console)
                 continue
-            if user_input.lower() == '/style':
+            if cmd_lower == '/style':
                 console.print("\n[bold cyan]Theme Customization[/bold cyan]")
                 target = await asyncio.to_thread(prompt, "Change [b]lue or [g]reen style? (b/g): ", style=style_g)
                 if target.lower() not in ['b', 'g']:
@@ -575,7 +593,7 @@ async def main_async(argv: list[str] | None = None) -> int:
                         console.print(f"[red]Error: Invalid style string format. ({e})[/red]")
                 continue
 
-            if user_input.lower() == '/eof':
+            if cmd_lower == '/eof':
                 console.print("\n[bold cyan]EOF Customization[/bold cyan]")
                 console.print(f"Current EOF string: {settings.get('eof_string', 'EOF')}")
                 new_eof = await asyncio.to_thread(prompt, "Enter new EOF string: ", style=style_g)
@@ -585,7 +603,7 @@ async def main_async(argv: list[str] | None = None) -> int:
                     console.print(f"[green]EOF string updated to '{settings['eof_string']}' and saved![/green]")
                 continue
 
-            if user_input.lower() == '/settings':
+            if cmd_lower == '/settings':
                 settings_path = Path(__file__).parent / "settings.json"
                 console.print(f"\n[bold cyan]Settings Configuration[/bold cyan]")
                 console.print(f"Path: [yellow]{settings_path}[/yellow]")
@@ -600,11 +618,13 @@ async def main_async(argv: list[str] | None = None) -> int:
                     console.print("[yellow]Settings file does not exist yet (using defaults).[/yellow]")
                 continue
 
-            if user_input.lower() == '/config-spotify':
-                await setup_spotify_config(console, settings)
+            if cmd_lower.startswith('/config-spotify'):
+                # Extract potential direct code/URL from the line
+                arg = user_input.strip()[len('/config-spotify'):].strip()
+                await setup_spotify_config(console, settings, initial_arg=arg)
                 continue
 
-            if user_input.lower() == '/config-konyks':
+            if cmd_lower.startswith('/config-konyks'):
                 await setup_konyks_config(console, settings)
                 continue
 
