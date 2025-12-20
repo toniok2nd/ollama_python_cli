@@ -116,7 +116,12 @@ myollama --enable-konyks
 
 ### 🔒 Authentication & Configuration
 
-Some MCP servers (Full tier) require credentials. You can set them as **Environment Variables** or in the `settings.json` file (typically found in your installation directory, run `/settings` in the app to see the path).
+Some MCP servers (Full tier) require credentials. You can set them as **Environment Variables**, in the `settings.json` file, or use the built-in configuration commands:
+- `/config-spotify`: Setup Spotify credentials.
+- `/config-konyks`: Setup Konyks (Tuya) credentials.
+
+> [!TIP]
+> Run `/settings` in the app to see the path to your `settings.json` file.
 
 #### 🎵 Spotify
 1. Create an app on the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
@@ -166,6 +171,8 @@ myollama --load previous_session.json
 | `||` | List all tables from the last AI response. |
 | `||[n]` | Show table `n` and copy it to the clipboard (e.g., `||0`). |
 | `<<` | Toggle voice recording (requires `--enable-tss`). |
+| `/config-spotify` | Interactively setup Spotify credentials in `settings.json`. |
+| `/config-konyks` | Interactively setup Konyks (Tuya) credentials in `settings.json`. |
 
 ## 📁 Project Structure
 

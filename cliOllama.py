@@ -316,6 +316,8 @@ def show_internal_options(console):
     || => show all tables available
     ||0 => show table 0 and add it to clipboard buffer
     << => toggle voice recording (requires --enable-tss)
+    /config-spotify => setup Spotify API credentials
+    /config-konyks => setup Konyks (Tuya) API credentials
     """
     console.print(options, style="red")
 
@@ -387,7 +389,8 @@ async def main_async(argv: list[str] | None = None) -> int:
         
         # Internal commands for autocompletion
         internal_commands = [
-            'exit', '/?', '/save', '/load', '/settings', '/style', '/eof', '!', '/auto', 'EOF', '>>', '||', '<<'
+            'exit', '/?', '/save', '/load', '/settings', '/style', '/eof', '!', '/auto', 'EOF', '>>', '||', '<<',
+            '/config-spotify', '/config-konyks'
         ]
         
         class StartOfLineCompleter(Completer):
@@ -514,6 +517,34 @@ async def main_async(argv: list[str] | None = None) -> int:
                         console.print(f"[red]Error reading settings file: {e}[/red]")
                 else:
                     console.print("[yellow]Settings file does not exist yet (using defaults).[/yellow]")
+                continue
+
+            if user_input.lower() == '/config-spotify':
+                console.print("\n[bold cyan]Spotify Configuration[/bold cyan]")
+                cid = await asyncio.to_thread(prompt, "Enter SPOTIPY_CLIENT_ID: ", style=style_g)
+                sec = await asyncio.to_thread(prompt, "Enter SPOTIPY_CLIENT_SECRET: ", style=style_g)
+                red = await asyncio.to_thread(prompt, "Enter SPOTIPY_REDIRECT_URI [default: http://127.0.0.1:8888/callback]: ", style=style_g)
+                
+                settings['SPOTIPY_CLIENT_ID'] = cid.strip()
+                settings['SPOTIPY_CLIENT_SECRET'] = sec.strip()
+                settings['SPOTIPY_REDIRECT_URI'] = red.strip() or "http://127.0.0.1:8888/callback"
+                save_settings(settings)
+                console.print("[green]Spotify settings saved![/green]")
+                continue
+
+            if user_input.lower() == '/config-konyks':
+                console.print("\n[bold cyan]Konyks (Tuya) Configuration[/bold cyan]")
+                cid = await asyncio.to_thread(prompt, "Enter TUYA_CLIENT_ID (Access ID): ", style=style_g)
+                sec = await asyncio.to_thread(prompt, "Enter TUYA_CLIENT_SECRET (Access Secret): ", style=style_g)
+                uid = await asyncio.to_thread(prompt, "Enter TUYA_UID (User ID): ", style=style_g)
+                reg = await asyncio.to_thread(prompt, "Enter TUYA_BASE_URL [default: https://openapi.tuyaeu.com]: ", style=style_g)
+                
+                settings['TUYA_CLIENT_ID'] = cid.strip()
+                settings['TUYA_CLIENT_SECRET'] = sec.strip()
+                settings['TUYA_UID'] = uid.strip()
+                settings['TUYA_BASE_URL'] = reg.strip() or "https://openapi.tuyaeu.com"
+                save_settings(settings)
+                console.print("[green]Konyks settings saved![/green]")
                 continue
 
             if user_input.startswith('!'):
