@@ -88,7 +88,11 @@ async def handle_call_tool(
     if name == "capture_webcam":
         filename = (arguments or {}).get("filename", "webcam.jpg")
         try:
-            _cv2 = get_cv2()
+            try:
+                _cv2 = get_cv2()
+            except ImportError:
+                 return CallToolResult(content=[TextContent(type="text", text="Error: 'opencv-python' not installed. Please install the 'Full' tier.")], isError=True)
+            
             cap = _cv2.VideoCapture(0)
             if not cap.isOpened():
                 return CallToolResult(content=[TextContent(type="text", text="Error: Could not open webcam.")], isError=True)
@@ -113,8 +117,11 @@ async def handle_call_tool(
         fs = 16000  # Sample rate for Whisper
         
         try:
-            _sd = get_sd()
-            _whisper = get_whisper()
+            try:
+                _sd = get_sd()
+                _whisper = get_whisper()
+            except ImportError:
+                 return CallToolResult(content=[TextContent(type="text", text="Error: 'sounddevice' or 'openai-whisper' not installed. Please install the 'Full' tier.")], isError=True)
             
             # Use a tiny model for speed
             model = _whisper.load_model("tiny")

@@ -20,11 +20,30 @@ A powerful, feature-rich Python CLI wrapper for the official `ollama` library. T
 
 ## 🚀 Installation
 
-### Automated Install
+## 🛠️ Installation Tiers
+
+Choose the tier that fits your needs:
+
+### 1. Light (Core Only)
+Terminal UI, History, Shell commands, and basic MCP.
 ```bash
-curl -fsSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/install_ollama_cli.sh | bash
+curl -sSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/install_ollama_cli.sh | bash -s -- --light
 ```
-This script sets up a virtual environment and installs a global `myollama` command.
+
+### 2. Medium (Recommended)
+Adds **Image Generation** and **Voice Synthesis**.
+```bash
+curl -sSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/install_ollama_cli.sh | bash -s -- --medium
+```
+
+### 3. Full (Multimedia)
+Adds **Webcam Capture** and **Local Voice Recording (STT)**.
+```bash
+curl -sSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/install_ollama_cli.sh | bash -s -- --full
+```
+
+> [!NOTE]
+> If you run the script without flags, it will prompt you to select a tier interactively.
 
 ### Manual Install
 ```bash

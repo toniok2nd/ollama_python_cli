@@ -203,15 +203,47 @@ log "Virtualenv activated (Python: $(python -V))"
 # ---------------------------------------------------------------
 # 5. Install Python dependencies
 # ---------------------------------------------------------------
-# The repo ships a requirements.txt; if not, fall back to installing ollama‑python‑cli directly.
-if [ -f "${REPO_BASE}/requirements.txt" ]; then
-    log "Installing requirements from requirements.txt ..."
+INSTALL_MODE="prompt"
+for arg in "$@"; do
+    case "$arg" in
+        --light)  INSTALL_MODE="light" ;;
+        --medium) INSTALL_MODE="medium" ;;
+        --full)   INSTALL_MODE="full" ;;
+    esac
+done
+
+if [[ "$INSTALL_MODE" == "prompt" ]]; then
+    if [[ -t 0 ]]; then
+        echo ""
+        log "Select installation tier:"
+        echo "1) Light  - Basic CLI (Fastest)"
+        echo "2) Medium - adds Image Gen & Voice (Recommended)"
+        echo "3) Full   - adds Webcam & Voice Recording (Heaviest)"
+        read -p "Select [1-3, default 1]: " tier_choice
+        case "$tier_choice" in
+            2) INSTALL_MODE="medium" ;;
+            3) INSTALL_MODE="full" ;;
+            *) INSTALL_MODE="light" ;;
+        esac
+    else
+        INSTALL_MODE="light"
+    fi
+fi
+
+case "$INSTALL_MODE" in
+    light)  REQ_FILE="requirements.txt" ;;
+    medium) REQ_FILE="requirements-medium.txt" ;;
+    full)   REQ_FILE="requirements-full.txt" ;;
+esac
+
+if [ -f "${REPO_BASE}/${REQ_FILE}" ]; then
+    log "Installing $INSTALL_MODE tier using ${REQ_FILE} ..."
     pip install --upgrade pip setuptools wheel
-    pip install -r "${REPO_BASE}/requirements.txt"
+    pip install -r "${REPO_BASE}/${REQ_FILE}"
 else
-    log "No requirements.txt found – installing the package via pip (might pull from PyPI)..."
+    log "Warning: ${REQ_FILE} not found. Falling back to core packages..."
     pip install --upgrade pip setuptools wheel
-    pip install -e "${REPO_BASE}"
+    pip install rich prompt_toolkit pyperclip ollama mcp
 fi
 
 # ---------------------------------------------------------------

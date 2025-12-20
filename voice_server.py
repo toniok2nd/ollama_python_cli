@@ -78,8 +78,13 @@ async def handle_call_tool(
     if name != "speak":
         raise ValueError(f"Unknown tool: {name}")
 
-    if not arguments:
-        raise ValueError("Missing arguments")
+    try:
+        import edge_tts as _edge_tts
+    except ImportError:
+        return CallToolResult(
+            content=[TextContent(type="text", text="Error: 'edge-tts' library not installed. Please install the 'Medium' or 'Full' tier.")],
+            isError=True
+        )
 
     text = arguments["text"]
     voice = arguments.get("voice", "en-US-AvaNeural")

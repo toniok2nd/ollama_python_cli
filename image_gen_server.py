@@ -8,8 +8,12 @@ from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 from pathlib import Path
 
-# Use httpx for asynchronous web requests
-import httpx
+# Check for httpx
+try:
+    import httpx
+except ImportError:
+    httpx = None
+
 from mcp.server.stdio import stdio_server
 from mcp.server import Server, NotificationOptions
 from mcp.server.models import InitializationOptions
@@ -72,6 +76,12 @@ async def handle_call_tool(
     if name != "generate_image":
         raise ValueError(f"Unknown tool: {name}")
 
+    if httpx is None:
+        return CallToolResult(
+            content=[TextContent(type="text", text="Error: 'httpx' library not installed. Please install the 'Medium' or 'Full' tier.")],
+            isError=True
+        )
+
     if not arguments:
         raise ValueError("Missing arguments")
 
@@ -82,7 +92,6 @@ async def handle_call_tool(
     filename = arguments.get("filename")
 
     # Construct Pollinations AI URL
-    # Format: https://image.pollinations.ai/prompt/{prompt}?width={width}&height={height}&seed={seed}&nologo=true
     import urllib.parse
     encoded_prompt = urllib.parse.quote(prompt)
     url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&seed={seed}&nologo=true"
@@ -108,8 +117,7 @@ async def handle_call_tool(
             save_msg = f"\nImage saved to: {safe_filename}"
             results.append(TextContent(type="text", text=f"Success! {save_msg}"))
 
-        # 2. Return as ImageContent for compatible clients (like this CLI might eventually support rendering)
-        # For now, base64 for Ollama to potentially "see" or just return success text.
+        # 2. Return as ImageContent
         base64_image = base64.b64encode(image_data).decode("utf-8")
         results.append(ImageContent(
             type="image",
