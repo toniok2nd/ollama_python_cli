@@ -116,9 +116,14 @@ myollama --enable-konyks
 
 ### 🔒 Authentication & Configuration
 
-Some MCP servers (Full tier) require credentials. You can set them as **Environment Variables**, in the `settings.json` file, or use the built-in configuration commands:
-- `/config-spotify`: Setup Spotify credentials.
-- `/config-konyks`: Setup Konyks (Tuya) credentials.
+Some MCP servers (Full tier) require credentials. You can set them via:
+1.  **CLI Flags** (Best for first-time setup and shell autocompletion):
+    ```bash
+    myollama --config-spotify
+    myollama --config-konyks
+    ```
+2.  **Slash Commands** (Inside the chat): `/config-spotify` or `/config-konyks`.
+3.  **Manual Edit**: Add keys directly to `settings.json` or as **Environment Variables**.
 
 > [!TIP]
 > Run `/settings` in the app to see the path to your `settings.json` file.
