@@ -29,7 +29,9 @@ def load_settings():
     defaults = {
         "style_b": "#ffffff bg:#0e49ba",
         "style_g": "#ffffff bg:green",
-        "eof_string": "EOF"
+        "eof_string": "EOF",
+        "voice_trigger": "<<",
+        "stt_duration": 10
     }
     if settings_path.exists():
         try:
@@ -241,6 +243,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument(
         "--enable-stt",
+        "--enable-tss",
         action='store_true',
         help="Enable MCP speech-to-text tools.",
     )
@@ -350,6 +353,8 @@ async def main_async(argv: list[str] | None = None) -> int:
         # Initialize PromptSession for history support
         session_input = PromptSession()
 
+        is_recording = False
+        
         while True:
             # Multi-line logic: if buffer is not empty, use simpler prompt
             prompt_text = f"{Emoji('peanuts')} >> {Emoji('brain')} \n" if not buffer else ""
@@ -359,6 +364,48 @@ async def main_async(argv: list[str] | None = None) -> int:
                 style=style_b,
                 completer=completer
             )
+
+            # Voice Trigger Toggle Logic
+            vt = settings.get('voice_trigger', '<<')
+            if user_input.strip() == vt:
+                if not sessions:
+                    console.print("[red]Error: No MCP sessions active.[/red]")
+                    continue
+                
+                # Check for multimedia session with recording tools
+                stt_session = None
+                for s in sessions:
+                    try:
+                        # We don't want to list tools every time for performance, 
+                        # but here it's only on trigger.
+                        tools_res = await s.list_tools()
+                        if any(t.name == "start_recording" for t in tools_res.tools):
+                            stt_session = s
+                            break
+                    except: continue
+                
+                if not stt_session:
+                    console.print("[red]Error: Speech-to-text server not active. Use --enable-tss.[/red]")
+                    continue
+
+                if not is_recording:
+                    # Start
+                    res = await stt_session.call_tool("start_recording", arguments={})
+                    console.print(f"[bold green]{res.content[0].text}[/bold green]")
+                    is_recording = True
+                else:
+                    # Stop
+                    console.print("[dim]Stopping recording and transcribing...[/dim]")
+                    res = await stt_session.call_tool("stop_recording", arguments={})
+                    if res.isError:
+                        console.print(f"[red]Error stopping recording: {res.content[0].text}[/red]")
+                    else:
+                        transcribed_text = res.content[0].text
+                        console.print(f"[bold cyan]Transcribed:[/] {transcribed_text}")
+                        # Append to buffer
+                        buffer += transcribed_text + " "
+                    is_recording = False
+                continue
 
             if user_input.lower() == 'exit':
                 break

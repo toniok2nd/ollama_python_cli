@@ -4,11 +4,19 @@ import sys
 import tempfile
 import threading
 from typing import Any, Dict, List, Optional
+
 # Lazy imports for heavy libraries
 np = None
 cv2 = None
 sd = None
 whisper = None
+
+# State for toggled recording
+recording_state = {
+    "active": False,
+    "buffer": None,
+    "fs": 16000
+}
 
 def get_cv2():
     global cv2
@@ -30,6 +38,7 @@ def get_whisper():
         import whisper as _whisper
         whisper = _whisper
     return whisper
+
 def get_np():
     global np
     if np is None:
@@ -81,6 +90,22 @@ async def handle_list_tools() -> List[Tool]:
                     }
                 },
                 "required": [],
+            },
+        ),
+        Tool(
+            name="start_recording",
+            description="Start recording audio from the microphone in the background. Does not return until stop_recording is called.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+            },
+        ),
+        Tool(
+            name="stop_recording",
+            description="Stop the background recording and transcribe it to text.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
             },
         )
     ]
@@ -145,8 +170,6 @@ async def handle_call_tool(
             audio = recording.flatten().astype(_np.float32)
             
             # Transcribe
-            # Note: Whisper expects a file path or a numpy array
-            # For array, we can use the low-level transcribe function
             result = model.transcribe(audio)
             text = result.get("text", "").strip()
             
@@ -154,6 +177,52 @@ async def handle_call_tool(
             
         except Exception as e:
              return CallToolResult(content=[TextContent(type="text", text=f"Error in STT: {str(e)}")], isError=True)
+
+    elif name == "start_recording":
+        try:
+            _sd = get_sd()
+            if recording_state["active"]:
+                 return CallToolResult(content=[TextContent(type="text", text="Error: Recording already in progress.")], isError=True)
+            
+            # Record a very long buffer (e.g., 10 minutes)
+            max_duration = 600 
+            fs = recording_state["fs"]
+            recording_state["active"] = True
+            recording_state["buffer"] = _sd.rec(int(max_duration * fs), samplerate=fs, channels=1)
+            
+            return CallToolResult(content=[TextContent(type="text", text="Recording started. Type '<<' again to stop.")])
+        except Exception as e:
+             recording_state["active"] = False
+             return CallToolResult(content=[TextContent(type="text", text=f"Error starting recording: {str(e)}")], isError=True)
+
+    elif name == "stop_recording":
+        try:
+            _sd = get_sd()
+            _whisper = get_whisper()
+            _np = get_np()
+
+            if not recording_state["active"]:
+                 return CallToolResult(content=[TextContent(type="text", text="Error: No recording in progress.")], isError=True)
+            
+            # Stop the recording
+            _sd.stop()
+            recording_state["active"] = False
+            
+            # Extract the part that was actually recorded
+            # Note: sounddevice returns the full buffer, but Whisper is generally good at ignoring end silence.
+            audio = recording_state["buffer"].flatten().astype(_np.float32)
+            recording_state["buffer"] = None # cleanup
+
+            # Use a tiny model for speed
+            model = _whisper.load_model("tiny")
+            result = model.transcribe(audio)
+            text = result.get("text", "").strip()
+            
+            return CallToolResult(content=[TextContent(type="text", text=text)])
+            
+        except Exception as e:
+             recording_state["active"] = False
+             return CallToolResult(content=[TextContent(type="text", text=f"Error stopping recording: {str(e)}")], isError=True)
 
     else:
         raise ValueError(f"Unknown tool: {name}")

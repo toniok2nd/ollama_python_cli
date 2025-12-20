@@ -5,7 +5,7 @@ A powerful, feature-rich Python CLI wrapper for the official `ollama` library. T
 ## ✨ Key Features
 
 - **Image Generation**: Generate pictures directly from your chat using Pollinations AI (via MCP).
-- **Webcam & Multimedia**: Capture snapshots from your webcam or record voice messages for transcription (via MCP).
+- **Webcam & Multimedia**: Capture snapshots from your webcam or record voice messages for transcription (via MCP). Supports hands-free recording with the `<<` toggle.
 - **Voice Support**: Realistic text-to-speech capabilities using Microsoft Edge TTS (via MCP).
 - **Multi-Server MCP Support**: Run multiple tool servers simultaneously (e.g., FS, Image, Voice, and Multimedia).
 - **Interactive Model Selection**: Uses `fzf` to let you choose from your locally available models.
@@ -13,6 +13,7 @@ A powerful, feature-rich Python CLI wrapper for the official `ollama` library. T
 - **MCP Integration**: Full support for Model Context Protocol. Includes a built-in File System server to let the LLM read and write files in your workspace.
 - **Rich Markdown Rendering**: Beautifully formatted responses using the `rich` library.
 - **Element Extraction**: Special commands to list and copy code blocks (`>>`) or tables (`||`) from the last response.
+- **Voice Trigger**: Use `<<` to toggle voice recording for hands-free prompting (requires STT).
 - **Custom Themes**: Interactively change prompt colors and styles.
 - **Shell Execution**: Run bash commands directly from the chat interface using `!` (e.g., `!ls`).
 - **Input History**: Navigate through your previous command inputs using the vertical arrow keys (Up/Down).
@@ -100,13 +101,13 @@ myollama --enable-voice
 ### Webcam & Recording (MCP)
 Enable vision and intent tools.
 ```bash
-myollama --enable-webcam --enable-stt
+myollama --enable-webcam --enable-tss
 ```
 
 ### Combined Mode (Full Power)
 You can run ALL servers at once for a truly futuristic experience:
 ```bash
-myollama --enable-fs --enable-image --enable-voice --enable-webcam --enable-stt
+myollama --enable-fs --enable-image --enable-voice --enable-webcam --enable-tss
 ```
 
 ### Load a Previous Chat
@@ -131,6 +132,7 @@ myollama --load previous_session.json
 | `>>[n]` | Show code block `n` and copy it to the clipboard (e.g., `>>0`). |
 | `||` | List all tables from the last AI response. |
 | `||[n]` | Show table `n` and copy it to the clipboard (e.g., `||0`). |
+| `<<` | Toggle voice recording (requires `--enable-tss`). |
 
 ## 📁 Project Structure
 
