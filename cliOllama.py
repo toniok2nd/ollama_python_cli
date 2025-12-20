@@ -1,4 +1,3 @@
-# PYTHON_ARGCOMPLETE_OK
 from prompt_toolkit.completion import WordCompleter, Completer
 from mcp import ClientSession, StdioServerParameters
 from prompt_toolkit import PromptSession, prompt
@@ -23,9 +22,6 @@ import json
 import sys
 import re
 import argcomplete
-
-
-# Default settings and style management
 
 
 # Default settings and style management
@@ -489,15 +485,20 @@ async def main_async(argv: list[str] | None = None) -> int:
             '/config-spotify', '/config-konyks'
         ]
         
+        from prompt_toolkit.completion import Completion
         class StartOfLineCompleter(Completer):
             def __init__(self, words):
-                self.word_completer = WordCompleter(words, ignore_case=True)
+                self.words = words
+
             def get_completions(self, document, complete_event):
-                # Only offer completions if we're at the very start of the line
-                # (allowing for leading whitespace if desired, but here we strictly check for no preceding spaces)
-                if ' ' in document.text_before_cursor:
+                # Only offer completions if we're at the very start of the line (no spaces before cursor)
+                text = document.text_before_cursor
+                if ' ' in text:
                     return
-                yield from self.word_completer.get_completions(document, complete_event)
+                
+                for word in self.words:
+                    if word.lower().startswith(text.lower()):
+                        yield Completion(word, start_position=-len(text))
 
         completer = StartOfLineCompleter(internal_commands)
         # Initialize PromptSession for history support
@@ -855,7 +856,7 @@ async def main_async(argv: list[str] | None = None) -> int:
 
         # 7. Konyks Server
         enable_konyks = getattr(args, 'enable_konyks', False)
-        if not enable_konyks and settings.get('TUYA_CLIENT_ID') and (curr_dir / "konyks_server.py").exists():
+        if not enable_konyks and settings.get('TUYA_CLIENT_ID') and (Path(__file__).parent / "konyks_server.py").exists():
             enable_konyks = True
             
         if enable_konyks:
@@ -872,7 +873,7 @@ async def main_async(argv: list[str] | None = None) -> int:
         # 8. Spotify Server
         enable_spotify = getattr(args, 'enable_spotify', False)
         # Auto-enable if configured
-        if not enable_spotify and settings.get('SPOTIPY_CLIENT_ID') and (curr_dir / "spotify_server.py").exists():
+        if not enable_spotify and settings.get('SPOTIPY_CLIENT_ID') and (Path(__file__).parent / "spotify_server.py").exists():
             enable_spotify = True
 
         if enable_spotify:
