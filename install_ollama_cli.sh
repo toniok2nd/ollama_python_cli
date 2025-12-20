@@ -310,10 +310,27 @@ log "Wrapper installed to $WRAPPER_PATH"
 # ---------------------------------------------------------------
 COMPLETION_FILE="${REPO_BASE}/myollama_completion.bash"
 log "Generating bash autocompletion script..."
-if "${VENV_DIR}/bin/python" -m argcomplete.scripts.register_python_argcomplete myollama > "$COMPLETION_FILE" 2>/dev/null; then
+# We need to ensure the wrapper is in PATH for register_python_argcomplete to find it
+if PATH="${WRAPPER_DIR}:$PATH" "${VENV_DIR}/bin/python" -m argcomplete.scripts.register_python_argcomplete myollama > "$COMPLETION_FILE" 2>/dev/null; then
     log "✅ Autocompletion script generated at $COMPLETION_FILE"
 else
     warn "Failed to generate autocompletion script automatically."
+    # Fallback to a basic registration if the above fails
+    cat > "$COMPLETION_FILE" <<EOF
+# Basic fall-back completion
+_python_argcomplete() {
+    local IFS=\$'\\013'
+    COMPREPLY=(\$(IFS="\$IFS" \\
+        COMP_LINE="\$COMP_LINE" \\
+        COMP_POINT="\$COMP_POINT" \\
+        COMP_TYPE="\$COMP_TYPE" \\
+        _ARGCOMPLETE=1 \\
+        _ARGCOMPLETE_SHELL="bash" \\
+        "$WRAPPER_PATH" 8>&1 9>&2 1>/dev/null 2>&1 </dev/null))
+}
+complete -o nospace -o default -o bashdefault -F _python_argcomplete myollama
+EOF
+    log "Used fallback completion script."
 fi
 
 # ---------------------------------------------------------------

@@ -114,12 +114,30 @@ Control your smart devices. Requires Tuya Cloud credentials in `settings.json` o
 myollama --enable-konyks
 ```
 
-### Spotify (MCP)
-Control your Spotify playback. Requires Spotify Developer credentials in `settings.json` or as environment variables.
-```bash
-myollama --enable-spotify
-```
+### 🔒 Authentication & Configuration
 
+Some MCP servers (Full tier) require credentials. You can set them as **Environment Variables** or in the `settings.json` file (typically found in your installation directory, run `/settings` in the app to see the path).
+
+#### 🎵 Spotify
+1. Create an app on the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
+2. Set the Redirect URI to `http://localhost:8888/callback` (or your preferred port).
+3. **Configuration**:
+   - `SPOTIPY_CLIENT_ID`: Your Spotify Client ID.
+   - `SPOTIPY_CLIENT_SECRET`: Your Spotify Client Secret.
+   - `SPOTIPY_REDIRECT_URI`: Should match your dashboard setting.
+   
+#### 🏠 Konyks / Tuya Smart Home
+1. Create a project on the [Tuya IoT Platform](https://iot.tuya.com/).
+2. Enable the **Core Control** and **Authorization Token Management** APIs.
+3. Link your Konyks/Tuya app account to the project.
+4. **Configuration**:
+   - `TUYA_CLIENT_ID`: Your Access ID/Client ID.
+   - `TUYA_CLIENT_SECRET`: Your Access Secret/Client Secret.
+   - `TUYA_UID`: Your User ID (found in the Cloud -> Link Tuya App Account tab).
+   - `TUYA_BASE_URL`: (Optional) Defaults to `https://openapi.tuyaeu.com` (Europe).
+
+#### 📺 YouTube
+- **No authentication required** for core search and transcript features.
 
 ### Load a Previous Chat
 ```bash
