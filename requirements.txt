@@ -5,3 +5,7 @@ ollama
 mcp
 httpx
 edge-tts
+opencv-python
+sounddevice
+numpy
+openai-whisper

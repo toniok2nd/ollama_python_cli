@@ -233,6 +233,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Enable MCP voice/speech tools.",
     )
 
+    parser.add_argument(
+        "--enable-webcam",
+        action='store_true',
+        help="Enable MCP webcam tools.",
+    )
+
+    parser.add_argument(
+        "--enable-stt",
+        action='store_true',
+        help="Enable MCP speech-to-text tools.",
+    )
+
     return parser
 
 # define internal options
@@ -580,6 +592,15 @@ async def main_async(argv: list[str] | None = None) -> int:
         # 3. Voice Server
         if args.enable_voice:
             server_path = Path(__file__).parent / "voice_server.py"
+            server_params = StdioServerParameters(command="python", args=[str(server_path)])
+            read, write = await stack.enter_async_context(stdio_client(server_params))
+            session = await stack.enter_async_context(ClientSession(read, write))
+            await session.initialize()
+            active_sessions.append(session)
+
+        # 4. Multimedia Server (Webcam & STT)
+        if args.enable_webcam or args.enable_stt:
+            server_path = Path(__file__).parent / "multimedia_server.py"
             server_params = StdioServerParameters(command="python", args=[str(server_path)])
             read, write = await stack.enter_async_context(stdio_client(server_params))
             session = await stack.enter_async_context(ClientSession(read, write))

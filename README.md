@@ -5,8 +5,9 @@ A powerful, feature-rich Python CLI wrapper for the official `ollama` library. T
 ## ✨ Key Features
 
 - **Image Generation**: Generate pictures directly from your chat using Pollinations AI (via MCP).
+- **Webcam & Multimedia**: Capture snapshots from your webcam or record voice messages for transcription (via MCP).
 - **Voice Support**: Realistic text-to-speech capabilities using Microsoft Edge TTS (via MCP).
-- **Multi-Server MCP Support**: Run multiple tool servers simultaneously (e.g., File System, Image Gen, and Voice).
+- **Multi-Server MCP Support**: Run multiple tool servers simultaneously (e.g., FS, Image, Voice, and Multimedia).
 - **Interactive Model Selection**: Uses `fzf` to let you choose from your locally available models.
 - **Multi-line Input**: Supports multi-line prompts with a customizable EOF marker (default is `EOF`).
 - **MCP Integration**: Full support for Model Context Protocol. Includes a built-in File System server to let the LLM read and write files in your workspace.
@@ -77,10 +78,16 @@ Enable the voice tools to allow the AI to speak its responses.
 myollama --enable-voice
 ```
 
-### Combined Mode (Recommended)
-You can run all servers at once for a full multimodal experience:
+### Webcam & Recording (MCP)
+Enable vision and intent tools.
 ```bash
-myollama --enable-fs --enable-image --enable-voice
+myollama --enable-webcam --enable-stt
+```
+
+### Combined Mode (Full Power)
+You can run ALL servers at once for a truly futuristic experience:
+```bash
+myollama --enable-fs --enable-image --enable-voice --enable-webcam --enable-stt
 ```
 
 ### Load a Previous Chat
