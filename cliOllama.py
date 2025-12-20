@@ -264,6 +264,13 @@ def build_parser() -> argparse.ArgumentParser:
             help="Enable MCP YouTube search and transcript tools.",
         )
 
+    if (curr_dir / "konyks_server.py").exists():
+        parser.add_argument(
+            "--enable-konyks",
+            action='store_true',
+            help="Enable MCP Konyks/Tuya smart home tools.",
+        )
+
     return parser
 
 # define internal options
@@ -706,6 +713,18 @@ async def main_async(argv: list[str] | None = None) -> int:
                 active_sessions.append(session)
             except Exception as e:
                  console.print(f"[bold red]Error:[/] YouTube server failed: {e}")
+
+        # 7. Konyks Server
+        if hasattr(args, 'enable_konyks') and args.enable_konyks:
+            server_path = Path(__file__).parent / "konyks_server.py"
+            server_params = StdioServerParameters(command="python", args=[str(server_path)])
+            try:
+                read, write = await stack.enter_async_context(stdio_client(server_params))
+                session = await stack.enter_async_context(ClientSession(read, write))
+                await session.initialize()
+                active_sessions.append(session)
+            except Exception as e:
+                 console.print(f"[bold red]Error:[/] Konyks server failed: {e}")
 
         # Run the UI loop
         await run_loop(active_sessions if active_sessions else None)

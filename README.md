@@ -7,7 +7,8 @@ A powerful, feature-rich Python CLI wrapper for the official `ollama` library. T
 - **Image Generation**: Generate pictures directly from your chat using Pollinations AI (via MCP).
 - **Webcam & Multimedia**: Capture snapshots from your webcam or record voice messages for transcription (via MCP). Supports hands-free recording with the `<<` toggle.
 - **Voice Support**: Realistic text-to-speech capabilities using Microsoft Edge TTS (via MCP).
-- 🤖 **Multi-Server MCP**: Concurrent support for File System, Image Generation, Voice (TTS/STT), Webcam, YouTube, and Video Editing.
+- 🤖 **Multi-Server MCP**: Concurrent support for File System, Image Generation, Voice (TTS/STT), Webcam, YouTube, Video Editing, and Smart Home (Konyks).
+- **Konyks / Tuya**: `--enable-konyks` (Full tier). Control your smart home devices (lights, plugs, etc.) directly from the chat.
 - **Interactive Model Selection**: Uses `fzf` to let you choose from your locally available models.
 - **Multi-line Input**: Supports multi-line prompts with a customizable EOF marker (default is `EOF`).
 - **MCP Integration**: Full support for Model Context Protocol. Includes a built-in File System server to let the LLM read and write files in your workspace.
@@ -39,8 +40,8 @@ Adds **Image Generation** and **Voice Synthesis**.
 curl -sSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/install_ollama_cli.sh | bash -s -- --medium
 ```
 
-### 3. Full (Multimedia)
-Adds **Webcam Capture** and **Local Voice Recording (STT)**.
+### 3. Full (Multimedia & Smart Home)
+Adds **Webcam Capture**, **Local Voice Recording (STT)**, and **Konyks/Tuya Smart Home** support.
 ```bash
 curl -sSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/install_ollama_cli.sh | bash -s -- --full
 ```
@@ -104,6 +105,12 @@ myollama --enable-voice
 Enable vision and intent tools.
 ```bash
 myollama --enable-webcam --enable-tss
+```
+
+### Konyks / Tuya Smart Home (MCP)
+Control your smart devices. Requires Tuya Cloud credentials in `settings.json` or as environment variables.
+```bash
+myollama --enable-konyks
 ```
 
 
