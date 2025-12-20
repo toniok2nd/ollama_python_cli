@@ -223,34 +223,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Enable MCP file system tools in the specified directory (defaults to current directory).",
     )
 
-    parser.add_argument(
-        "--enable-image",
-        action='store_true',
-        help="Enable MCP image generation tools.",
-    )
 
-    parser.add_argument(
-        "--enable-voice",
-        action='store_true',
-        help="Enable MCP voice/speech tools.",
-    )
-
-    parser.add_argument(
-        "--enable-webcam",
-        action='store_true',
-        help="Enable MCP webcam tools.",
-    )
-
-    parser.add_argument(
-        "--enable-stt",
-        "--enable-tss",
-        action='store_true',
-        help="Enable MCP speech-to-text tools.",
-    )
-
-    return parser
-
-# define internal options
 def show_internal_options(console):
     options="""
     Here are your options
@@ -665,6 +638,18 @@ async def main_async(argv: list[str] | None = None) -> int:
                 active_sessions.append(session)
             except Exception as e:
                  console.print(f"[bold red]Error:[/] Multimedia server (Webcam/STT) failed: {e}")
+
+        # 5. Video Server (OpenShot)
+        if args.enable_video:
+            server_path = Path(__file__).parent / "openshot_server.py"
+            server_params = StdioServerParameters(command="python", args=[str(server_path)])
+            try:
+                read, write = await stack.enter_async_context(stdio_client(server_params))
+                session = await stack.enter_async_context(ClientSession(read, write))
+                await session.initialize()
+                active_sessions.append(session)
+            except Exception as e:
+                 console.print(f"[bold red]Error:[/] Video server (OpenShot) failed: {e}")
 
         # Run the UI loop
         await run_loop(active_sessions if active_sessions else None)

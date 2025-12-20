@@ -218,7 +218,7 @@ if [[ "$INSTALL_MODE" == "prompt" ]]; then
         log "Select installation tier:"
         echo "1) Light  - Basic CLI (Fastest)"
         echo "2) Medium - adds Image Gen & Voice (Recommended)"
-        echo "3) Full   - adds Webcam & Voice Recording (Heaviest)"
+        echo "3) Full   - adds Webcam, Voice Recording & Video Editing (Heaviest)"
         read -p "Select [1-3, default 1]: " tier_choice
         case "$tier_choice" in
             2) INSTALL_MODE="medium" ;;
@@ -240,6 +240,18 @@ if [ -f "${REPO_BASE}/${REQ_FILE}" ]; then
     log "Installing $INSTALL_MODE tier using ${REQ_FILE} ..."
     pip install --upgrade pip setuptools wheel
     pip install -r "${REPO_BASE}/${REQ_FILE}"
+
+    # Cleanup optional servers based on tier to hide arguments in cliOllama.py
+    if [[ "$INSTALL_MODE" != "full" ]]; then
+        log "Removing Full-tier servers..."
+        rm -f "${REPO_BASE}/openshot_server.py"
+        rm -f "${REPO_BASE}/multimedia_server.py"
+    fi
+    if [[ "$INSTALL_MODE" == "light" ]]; then
+        log "Removing Medium-tier servers..."
+        rm -f "${REPO_BASE}/image_gen_server.py"
+        rm -f "${REPO_BASE}/voice_server.py"
+    fi
 else
     log "Warning: ${REQ_FILE} not found. Falling back to core packages..."
     pip install --upgrade pip setuptools wheel

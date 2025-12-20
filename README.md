@@ -13,6 +13,7 @@ A powerful, feature-rich Python CLI wrapper for the official `ollama` library. T
 - **MCP Integration**: Full support for Model Context Protocol. Includes a built-in File System server to let the LLM read and write files in your workspace.
 - **Rich Markdown Rendering**: Beautifully formatted responses using the `rich` library.
 - **Element Extraction**: Special commands to list and copy code blocks (`>>`) or tables (`||`) from the last response.
+- **Video Editing**: Create OpenShot projects and render quick montages with FFmpeg (via MCP).
 - **Voice Trigger**: Use `<<` to toggle voice recording for hands-free prompting (requires STT).
 - **Custom Themes**: Interactively change prompt colors and styles.
 - **Shell Execution**: Run bash commands directly from the chat interface using `!` (e.g., `!ls`).
@@ -104,11 +105,6 @@ Enable vision and intent tools.
 myollama --enable-webcam --enable-tss
 ```
 
-### Combined Mode (Full Power)
-You can run ALL servers at once for a truly futuristic experience:
-```bash
-myollama --enable-fs --enable-image --enable-voice --enable-webcam --enable-tss
-```
 
 ### Load a Previous Chat
 ```bash
