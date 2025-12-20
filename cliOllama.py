@@ -81,36 +81,40 @@ async def run_chat_turn(model, messages, sessions=None):
 
     # We will use a dedicated loop for the tool-calling cycle
     while True:
-        # Call Ollama
-        stream = ollama.chat(model=model, messages=messages, tools=tools if tools else None, stream=True)
-        
-        final_message = {'role': 'assistant', 'content': '', 'tool_calls': []}
-        
-        for chunk in stream:
-            # Handle content
-            content = chunk.get('message', {}).get('content', '')
-            if content:
-                final_message['content'] += content
-                yield content
+        try:
+            # Call Ollama
+            stream = ollama.chat(model=model, messages=messages, tools=tools if tools else None, stream=True)
+            
+            final_message = {'role': 'assistant', 'content': '', 'tool_calls': []}
+            
+            for chunk in stream:
+                # Handle content
+                content = chunk.get('message', {}).get('content', '')
+                if content:
+                    final_message['content'] += content
+                    yield content
 
-            # Handle tool calls (accumulate)
-            if 'tool_calls' in chunk.get('message', {}):
-                tcs = chunk['message']['tool_calls']
-                for tc in tcs:
-                     # Convert to dict to ensure JSON serializability
-                     if hasattr(tc, 'model_dump'):
-                         final_message['tool_calls'].append(tc.model_dump())
-                     elif hasattr(tc, 'dict'):
-                         final_message['tool_calls'].append(tc.dict())
-                     else:
-                         # Fallback manual extraction
-                         final_message['tool_calls'].append({
-                             'type': 'function',
-                             'function': {
-                                 'name': getattr(tc.function, 'name', None),
-                                 'arguments': getattr(tc.function, 'arguments', None)
-                             }
-                         })
+                # Handle tool calls (accumulate)
+                if 'tool_calls' in chunk.get('message', {}):
+                    tcs = chunk['message']['tool_calls']
+                    for tc in tcs:
+                         # Convert to dict to ensure JSON serializability
+                         if hasattr(tc, 'model_dump'):
+                             final_message['tool_calls'].append(tc.model_dump())
+                         elif hasattr(tc, 'dict'):
+                             final_message['tool_calls'].append(tc.dict())
+                         else:
+                             # Fallback manual extraction
+                             final_message['tool_calls'].append({
+                                 'type': 'function',
+                                 'function': {
+                                     'name': getattr(tc.function, 'name', None),
+                                     'arguments': getattr(tc.function, 'arguments', None)
+                                 }
+                             })
+        except Exception as e:
+            yield f"\n[Ollama Error: {e}]"
+            return
 
         # After stream finishes
         if not final_message['tool_calls']:
@@ -269,6 +273,13 @@ def build_parser() -> argparse.ArgumentParser:
             "--enable-konyks",
             action='store_true',
             help="Enable MCP Konyks/Tuya smart home tools.",
+        )
+
+    if (curr_dir / "spotify_server.py").exists():
+        parser.add_argument(
+            "--enable-spotify",
+            action='store_true',
+            help="Enable MCP Spotify playback tools.",
         )
 
     return parser
@@ -725,6 +736,18 @@ async def main_async(argv: list[str] | None = None) -> int:
                 active_sessions.append(session)
             except Exception as e:
                  console.print(f"[bold red]Error:[/] Konyks server failed: {e}")
+
+        # 8. Spotify Server
+        if hasattr(args, 'enable_spotify') and args.enable_spotify:
+            server_path = Path(__file__).parent / "spotify_server.py"
+            server_params = StdioServerParameters(command="python", args=[str(server_path)])
+            try:
+                read, write = await stack.enter_async_context(stdio_client(server_params))
+                session = await stack.enter_async_context(ClientSession(read, write))
+                await session.initialize()
+                active_sessions.append(session)
+            except Exception as e:
+                 console.print(f"[bold red]Error:[/] Spotify server failed: {e}")
 
         # Run the UI loop
         await run_loop(active_sessions if active_sessions else None)

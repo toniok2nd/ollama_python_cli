@@ -7,7 +7,8 @@ A powerful, feature-rich Python CLI wrapper for the official `ollama` library. T
 - **Image Generation**: Generate pictures directly from your chat using Pollinations AI (via MCP).
 - **Webcam & Multimedia**: Capture snapshots from your webcam or record voice messages for transcription (via MCP). Supports hands-free recording with the `<<` toggle.
 - **Voice Support**: Realistic text-to-speech capabilities using Microsoft Edge TTS (via MCP).
-- 🤖 **Multi-Server MCP**: Concurrent support for File System, Image Generation, Voice (TTS/STT), Webcam, YouTube, Video Editing, and Smart Home (Konyks).
+- 🤖 **Multi-Server MCP**: Concurrent support for File System, Image Generation, Voice (TTS/STT), Webcam, YouTube, Video Editing, Smart Home (Konyks), and Spotify.
+- **Spotify**: `--enable-spotify` (Full tier). Search music and control playback (play/pause/next/previous/volume) directly from the chat.
 - **Konyks / Tuya**: `--enable-konyks` (Full tier). Control your smart home devices (lights, plugs, etc.) directly from the chat.
 - **Interactive Model Selection**: Uses `fzf` to let you choose from your locally available models.
 - **Multi-line Input**: Supports multi-line prompts with a customizable EOF marker (default is `EOF`).
@@ -40,8 +41,8 @@ Adds **Image Generation** and **Voice Synthesis**.
 curl -sSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/install_ollama_cli.sh | bash -s -- --medium
 ```
 
-### 3. Full (Multimedia & Smart Home)
-Adds **Webcam Capture**, **Local Voice Recording (STT)**, and **Konyks/Tuya Smart Home** support.
+### 3. Full (Multimedia, Smart Home & Music)
+Adds **Webcam Capture**, **Local Voice Recording (STT)**, **Konyks/Tuya Smart Home**, and **Spotify** support.
 ```bash
 curl -sSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/install_ollama_cli.sh | bash -s -- --full
 ```
@@ -113,6 +114,12 @@ Control your smart devices. Requires Tuya Cloud credentials in `settings.json` o
 myollama --enable-konyks
 ```
 
+### Spotify (MCP)
+Control your Spotify playback. Requires Spotify Developer credentials in `settings.json` or as environment variables.
+```bash
+myollama --enable-spotify
+```
+
 
 ### Load a Previous Chat
 ```bash
@@ -131,7 +138,7 @@ myollama --load previous_session.json
 | `/style` | Interactively customize prompt colors (`style_b` and `style_g`). |
 | `/eof` | Change the multi-line input termination string (default `EOF`). |
 | `/auto` | Toggle automatic saving after each response (requires initial `/save`). |
-| `! <cmd>`| Execute a shell command and see the output (e.g., `!ls`). |
+| `!<cmd>`| Execute a shell command and see the output (e.g., `!ls`). |
 | `>>` | List all code blocks from the last AI response. |
 | `>>[n]` | Show code block `n` and copy it to the clipboard (e.g., `>>0`). |
 | `||` | List all tables from the last AI response. |

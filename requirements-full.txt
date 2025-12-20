@@ -6,3 +6,4 @@ openai-whisper
 youtube-search-python
 youtube-transcript-api
 tuya-iot-py-sdk
+spotipy
