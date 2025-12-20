@@ -227,6 +227,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Enable MCP image generation tools.",
     )
 
+    parser.add_argument(
+        "--enable-voice",
+        action='store_true',
+        help="Enable MCP voice/speech tools.",
+    )
+
     return parser
 
 # define internal options
@@ -565,6 +571,15 @@ async def main_async(argv: list[str] | None = None) -> int:
         # 2. Image Generation Server
         if args.enable_image:
             server_path = Path(__file__).parent / "image_gen_server.py"
+            server_params = StdioServerParameters(command="python", args=[str(server_path)])
+            read, write = await stack.enter_async_context(stdio_client(server_params))
+            session = await stack.enter_async_context(ClientSession(read, write))
+            await session.initialize()
+            active_sessions.append(session)
+
+        # 3. Voice Server
+        if args.enable_voice:
+            server_path = Path(__file__).parent / "voice_server.py"
             server_params = StdioServerParameters(command="python", args=[str(server_path)])
             read, write = await stack.enter_async_context(stdio_client(server_params))
             session = await stack.enter_async_context(ClientSession(read, write))

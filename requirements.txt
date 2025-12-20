@@ -4,3 +4,4 @@ pyperclip
 ollama
 mcp
 httpx
+edge-tts
