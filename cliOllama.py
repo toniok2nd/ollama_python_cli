@@ -362,7 +362,7 @@ async def setup_spotify_config(console, settings_dict, initial_arg=None):
             else:
                 code = auth_manager.parse_response_code(response_url)
                 
-            token = auth_manager.get_access_token(code)
+            token = auth_manager.get_access_token(code, as_dict=False)
             if token:
                 console.print("[green]Authentication successful! Token saved.[/green]")
             else:
@@ -854,7 +854,11 @@ async def main_async(argv: list[str] | None = None) -> int:
                  console.print(f"[bold red]Error:[/] YouTube server failed: {e}")
 
         # 7. Konyks Server
-        if hasattr(args, 'enable_konyks') and args.enable_konyks:
+        enable_konyks = getattr(args, 'enable_konyks', False)
+        if not enable_konyks and settings.get('TUYA_CLIENT_ID') and (curr_dir / "konyks_server.py").exists():
+            enable_konyks = True
+            
+        if enable_konyks:
             server_path = Path(__file__).parent / "konyks_server.py"
             server_params = StdioServerParameters(command=sys.executable, args=[str(server_path)])
             try:
@@ -866,7 +870,12 @@ async def main_async(argv: list[str] | None = None) -> int:
                  console.print(f"[bold red]Error:[/] Konyks server failed: {e}")
 
         # 8. Spotify Server
-        if hasattr(args, 'enable_spotify') and args.enable_spotify:
+        enable_spotify = getattr(args, 'enable_spotify', False)
+        # Auto-enable if configured
+        if not enable_spotify and settings.get('SPOTIPY_CLIENT_ID') and (curr_dir / "spotify_server.py").exists():
+            enable_spotify = True
+
+        if enable_spotify:
             server_path = Path(__file__).parent / "spotify_server.py"
             server_params = StdioServerParameters(command=sys.executable, args=[str(server_path)])
             try:

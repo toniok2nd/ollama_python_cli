@@ -8,8 +8,8 @@ A powerful, feature-rich Python CLI wrapper for the official `ollama` library. T
 - **Webcam & Multimedia**: Capture snapshots from your webcam or record voice messages for transcription (via MCP). Supports hands-free recording with the `<<` toggle.
 - **Voice Support**: Realistic text-to-speech capabilities using Microsoft Edge TTS (via MCP).
 - 🤖 **Multi-Server MCP**: Concurrent support for File System, Image Generation, Voice (TTS/STT), Webcam, YouTube, Video Editing, Smart Home (Konyks), and Spotify.
-- **Spotify**: `--enable-spotify` (Full tier). Search music and control playback (play/pause/next/previous/volume) directly from the chat.
-- **Konyks / Tuya**: `--enable-konyks` (Full tier). Control your smart home devices (lights, plugs, etc.) directly from the chat.
+- **Spotify**: Search music and control playback (play/pause/next/previous/volume) directly from the chat. **Auto-activates when configured.**
+- **Konyks / Tuya**: Control your smart home devices (lights, plugs, etc.) directly from the chat. **Auto-activates when configured.**
 - **Interactive Model Selection**: Uses `fzf` to let you choose from your locally available models.
 - **Multi-line Input**: Supports multi-line prompts with a customizable EOF marker (default is `EOF`).
 - **MCP Integration**: Full support for Model Context Protocol. Includes a built-in File System server to let the LLM read and write files in your workspace.
@@ -109,7 +109,9 @@ myollama --enable-webcam --enable-tss
 ```
 
 ### Konyks / Tuya Smart Home (MCP)
-Control your smart devices. Requires Tuya Cloud credentials in `settings.json` or as environment variables.
+Control your smart devices. Requires Tuya Cloud credentials in `settings.json`.
+> [!NOTE]
+> Once configured via `/config-konyks`, this server starts automatically. You only need the flag for manual overrides.
 ```bash
 myollama --enable-konyks
 ```
@@ -130,11 +132,11 @@ Some MCP servers (Full tier) require credentials. You can set them via:
 
 #### 🎵 Spotify
 1. Create an app on the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
-2. Set the Redirect URI to `http://127.0.0.1:8888/callback` (or your preferred port).
-3. **Configuration**:
-   - `SPOTIPY_CLIENT_ID`: Your Spotify Client ID.
-   - `SPOTIPY_CLIENT_SECRET`: Your Spotify Client Secret.
-   - `SPOTIPY_REDIRECT_URI`: Should match your dashboard setting.
+2. Set the Redirect URI to `http://127.0.0.1:8888/callback`.
+3. **Assisted Configuration**:
+   - Run `/config-spotify` inside `myollama`.
+   - The CLI will guide you through the login process and securely save your access token.
+   - **No manual flag required**: Once authenticated, Spotify tools are available every time you start `myollama`.
 
 > [!TIP]
 > **Why `127.0.0.1` instead of `localhost`?**
