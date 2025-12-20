@@ -149,4 +149,47 @@ async def main():
         )
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import os
+    import sys
+    # Recursive cleaner: if we detecting we are in a "dirty" environment that prints 
+    # things on startup (like "Welcome back"), we re-run ourselves and filter stdout.
+    if os.environ.get("MCP_CLEANER_OK") != "TRUE":
+        import subprocess
+        new_env = os.environ.copy()
+        new_env["MCP_CLEANER_OK"] = "TRUE"
+        # We use sys.executable to run the same interpreter, bypassing shell greetings if possible
+        # through the pipe filtering.
+        proc = subprocess.Popen(
+            [sys.executable] + sys.argv, 
+            stdout=subprocess.PIPE, 
+            stdin=sys.stdin, 
+            stderr=sys.stderr, 
+            env=new_env
+        )
+        
+        # Filter stdout until we see valid JSON
+        found_json = False
+        for line in proc.stdout:
+            if not found_json and line.strip().startswith(b'{'):
+                found_json = True
+                sys.stdout.buffer.write(line)
+                sys.stdout.buffer.flush()
+            elif found_json:
+                sys.stdout.buffer.write(line)
+                sys.stdout.buffer.flush()
+            else:
+                # Discard noise to stderr for debugging
+                sys.stderr.buffer.write(b"[DEBUG] Discarded noise: " + line)
+                sys.stderr.flush()
+        
+        # Continue piping if needed (though the loop above handles most)
+        while True:
+            chunk = proc.stdout.read(4096)
+            if not chunk: break
+            sys.stdout.buffer.write(chunk)
+            sys.stdout.buffer.flush()
+        
+        sys.exit(proc.wait())
+    else:
+        # We are the "clean" child process
+        asyncio.run(main())
