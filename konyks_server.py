@@ -196,29 +196,20 @@ async def handle_call_tool(
             isError=True
         )
 
-if __name__ == "__main__":
-    # Defensive: redirect any accidental library prints to stderr
-    # so they don't pollute the MCP stdout channel.
-    import sys
-    orig_stdout = sys.stdout
-    sys.stdout = sys.stderr
-    
-    async def run():
-        async with stdio_server() as (read_stream, write_stream):
-            await server.run(
-                read_stream,
-                write_stream,
-                InitializationOptions(
-                    server_name="konyks-server",
-                    server_version="0.1.0",
-                    capabilities=server.get_capabilities(
-                        notification_options=NotificationOptions(),
-                        experimental_capabilities={},
-                    ),
+async def main():
+    async with stdio_server() as (read_stream, write_stream):
+        await server.run(
+            read_stream,
+            write_stream,
+            InitializationOptions(
+                server_name="konyks-server",
+                server_version="0.1.0",
+                capabilities=server.get_capabilities(
+                    notification_options=NotificationOptions(),
+                    experimental_capabilities={},
                 ),
-            )
-    
-    try:
-        asyncio.run(run())
-    finally:
-        sys.stdout = orig_stdout
+            ),
+        )
+
+if __name__ == "__main__":
+    asyncio.run(main())
