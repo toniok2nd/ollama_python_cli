@@ -121,7 +121,7 @@ async def handle_call_tool(
     """Handle Konyks/Tuya tool calls."""
     if TuyaOpenAPI is None:
         return CallToolResult(
-            content=[TextContent(type="text", text="Error: 'tuya-iot-python-sdk' not installed. Please run pip install tuya-iot-python-sdk.")],
+            content=[TextContent(type="text", text="Error: 'tuya-iot-py-sdk' not installed. Please run pip install tuya-iot-py-sdk.")],
             isError=True
         )
 

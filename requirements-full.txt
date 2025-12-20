@@ -5,4 +5,4 @@ numpy
 openai-whisper
 youtube-search-python
 youtube-transcript-api
-tuya-iot-python-sdk
+tuya-iot-py-sdk
