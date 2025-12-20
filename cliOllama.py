@@ -257,6 +257,13 @@ def build_parser() -> argparse.ArgumentParser:
             help="Enable MCP video editing tools (OpenShot/FFmpeg).",
         )
 
+    if (curr_dir / "youtube_server.py").exists():
+        parser.add_argument(
+            "--enable-youtube",
+            action='store_true',
+            help="Enable MCP YouTube search and transcript tools.",
+        )
+
     return parser
 
 # define internal options
@@ -687,6 +694,18 @@ async def main_async(argv: list[str] | None = None) -> int:
                 active_sessions.append(session)
             except Exception as e:
                  console.print(f"[bold red]Error:[/] Video server (OpenShot) failed: {e}")
+
+        # 6. YouTube Server
+        if hasattr(args, 'enable_youtube') and args.enable_youtube:
+            server_path = Path(__file__).parent / "youtube_server.py"
+            server_params = StdioServerParameters(command="python", args=[str(server_path)])
+            try:
+                read, write = await stack.enter_async_context(stdio_client(server_params))
+                session = await stack.enter_async_context(ClientSession(read, write))
+                await session.initialize()
+                active_sessions.append(session)
+            except Exception as e:
+                 console.print(f"[bold red]Error:[/] YouTube server failed: {e}")
 
         # Run the UI loop
         await run_loop(active_sessions if active_sessions else None)

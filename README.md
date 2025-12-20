@@ -7,13 +7,14 @@ A powerful, feature-rich Python CLI wrapper for the official `ollama` library. T
 - **Image Generation**: Generate pictures directly from your chat using Pollinations AI (via MCP).
 - **Webcam & Multimedia**: Capture snapshots from your webcam or record voice messages for transcription (via MCP). Supports hands-free recording with the `<<` toggle.
 - **Voice Support**: Realistic text-to-speech capabilities using Microsoft Edge TTS (via MCP).
-- **Multi-Server MCP Support**: Run multiple tool servers simultaneously (e.g., FS, Image, Voice, and Multimedia).
+- 🤖 **Multi-Server MCP**: Concurrent support for File System, Image Generation, Voice (TTS/STT), Webcam, YouTube, and Video Editing.
 - **Interactive Model Selection**: Uses `fzf` to let you choose from your locally available models.
 - **Multi-line Input**: Supports multi-line prompts with a customizable EOF marker (default is `EOF`).
 - **MCP Integration**: Full support for Model Context Protocol. Includes a built-in File System server to let the LLM read and write files in your workspace.
 - **Rich Markdown Rendering**: Beautifully formatted responses using the `rich` library.
 - **Element Extraction**: Special commands to list and copy code blocks (`>>`) or tables (`||`) from the last response.
-- **Video Editing**: Create OpenShot projects and render quick montages with FFmpeg (via MCP).
+- **Video Editing**: `--enable-video` (Full tier). Create OpenShot projects and render montages with FFmpeg (via MCP).
+- **YouTube**: `--enable-youtube` (Full tier). Search videos and fetch transcripts for AI analysis.
 - **Voice Trigger**: Use `<<` to toggle voice recording for hands-free prompting (requires STT).
 - **Custom Themes**: Interactively change prompt colors and styles.
 - **Shell Execution**: Run bash commands directly from the chat interface using `!` (e.g., `!ls`).

@@ -218,7 +218,7 @@ if [[ "$INSTALL_MODE" == "prompt" ]]; then
         log "Select installation tier:"
         echo "1) Light  - Basic CLI (Fastest)"
         echo "2) Medium - adds Image Gen & Voice (Recommended)"
-        echo "3) Full   - adds Webcam, Voice Recording & Video Editing (Heaviest)"
+        echo "3) Full   - adds Webcam, Voice Recording, YouTube & Video Editing (Heaviest)"
         read -p "Select [1-3, default 1]: " tier_choice
         case "$tier_choice" in
             2) INSTALL_MODE="medium" ;;
@@ -246,6 +246,7 @@ if [ -f "${REPO_BASE}/${REQ_FILE}" ]; then
         log "Removing Full-tier servers..."
         rm -f "${REPO_BASE}/openshot_server.py"
         rm -f "${REPO_BASE}/multimedia_server.py"
+        rm -f "${REPO_BASE}/youtube_server.py"
     fi
     if [[ "$INSTALL_MODE" == "light" ]]; then
         log "Removing Medium-tier servers..."

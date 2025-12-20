@@ -3,3 +3,5 @@ opencv-python
 sounddevice
 numpy
 openai-whisper
+youtube-search-python
+youtube-transcript-api
