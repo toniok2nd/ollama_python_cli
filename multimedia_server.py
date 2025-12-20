@@ -4,9 +4,8 @@ import sys
 import tempfile
 import threading
 from typing import Any, Dict, List, Optional
-import numpy as np
-
 # Lazy imports for heavy libraries
+np = None
 cv2 = None
 sd = None
 whisper = None
@@ -31,6 +30,12 @@ def get_whisper():
         import whisper as _whisper
         whisper = _whisper
     return whisper
+def get_np():
+    global np
+    if np is None:
+        import numpy as _np
+        np = _np
+    return np
 
 from mcp.server.stdio import stdio_server
 from mcp.server import Server, NotificationOptions
@@ -131,8 +136,13 @@ async def handle_call_tool(
             _sd.wait()  # Wait for recording to finish
             print("Recording finished. Transcribing...", file=sys.stderr)
             
+            try:
+                _np = get_np()
+            except ImportError:
+                 return CallToolResult(content=[TextContent(type="text", text="Error: 'numpy' not installed. Please install the 'Full' tier.")], isError=True)
+            
             # Convert to float32 if needed
-            audio = recording.flatten().astype(np.float32)
+            audio = recording.flatten().astype(_np.float32)
             
             # Transcribe
             # Note: Whisper expects a file path or a numpy array

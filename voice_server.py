@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import tempfile
 from typing import Any, Dict, List, Optional
-import edge_tts
+# edge_tts will be imported locally in handle_call_tool
 from mcp.server.stdio import stdio_server
 from mcp.server import Server, NotificationOptions
 from mcp.server.models import InitializationOptions
@@ -95,7 +95,7 @@ async def handle_call_tool(
         with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
             tmp_path = tmp.name
 
-        communicate = edge_tts.Communicate(text, voice, rate=rate)
+        communicate = _edge_tts.Communicate(text, voice, rate=rate)
         await communicate.save(tmp_path)
 
         # Play the audio

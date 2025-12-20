@@ -574,38 +574,50 @@ async def main_async(argv: list[str] | None = None) -> int:
         if args.enable_fs:
             server_path = Path(__file__).parent / "simple_fs_server.py"
             server_params = StdioServerParameters(command="python", args=[str(server_path), str(args.enable_fs)])
-            # Use stack to manage context lifecycle
-            read, write = await stack.enter_async_context(stdio_client(server_params))
-            session = await stack.enter_async_context(ClientSession(read, write))
-            await session.initialize()
-            active_sessions.append(session)
+            try:
+                # Use stack to manage context lifecycle
+                read, write = await stack.enter_async_context(stdio_client(server_params))
+                session = await stack.enter_async_context(ClientSession(read, write))
+                await session.initialize()
+                active_sessions.append(session)
+            except Exception as e:
+                console.print(f"[bold red]Error:[/] File System server failed: {e}")
 
         # 2. Image Generation Server
         if args.enable_image:
             server_path = Path(__file__).parent / "image_gen_server.py"
             server_params = StdioServerParameters(command="python", args=[str(server_path)])
-            read, write = await stack.enter_async_context(stdio_client(server_params))
-            session = await stack.enter_async_context(ClientSession(read, write))
-            await session.initialize()
-            active_sessions.append(session)
+            try:
+                read, write = await stack.enter_async_context(stdio_client(server_params))
+                session = await stack.enter_async_context(ClientSession(read, write))
+                await session.initialize()
+                active_sessions.append(session)
+            except Exception as e:
+                console.print(f"[bold red]Error:[/] Image Generation server failed: {e}")
 
         # 3. Voice Server
         if args.enable_voice:
             server_path = Path(__file__).parent / "voice_server.py"
             server_params = StdioServerParameters(command="python", args=[str(server_path)])
-            read, write = await stack.enter_async_context(stdio_client(server_params))
-            session = await stack.enter_async_context(ClientSession(read, write))
-            await session.initialize()
-            active_sessions.append(session)
+            try:
+                read, write = await stack.enter_async_context(stdio_client(server_params))
+                session = await stack.enter_async_context(ClientSession(read, write))
+                await session.initialize()
+                active_sessions.append(session)
+            except Exception as e:
+                console.print(f"[bold red]Error:[/] Voice server failed: {e}")
 
         # 4. Multimedia Server (Webcam & STT)
         if args.enable_webcam or args.enable_stt:
             server_path = Path(__file__).parent / "multimedia_server.py"
             server_params = StdioServerParameters(command="python", args=[str(server_path)])
-            read, write = await stack.enter_async_context(stdio_client(server_params))
-            session = await stack.enter_async_context(ClientSession(read, write))
-            await session.initialize()
-            active_sessions.append(session)
+            try:
+                read, write = await stack.enter_async_context(stdio_client(server_params))
+                session = await stack.enter_async_context(ClientSession(read, write))
+                await session.initialize()
+                active_sessions.append(session)
+            except Exception as e:
+                 console.print(f"[bold red]Error:[/] Multimedia server (Webcam/STT) failed: {e}")
 
         # Run the UI loop
         await run_loop(active_sessions if active_sessions else None)
