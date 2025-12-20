@@ -729,7 +729,7 @@ async def main_async(argv: list[str] | None = None) -> int:
         # 1. File System Server
         if args.enable_fs:
             server_path = Path(__file__).parent / "simple_fs_server.py"
-            server_params = StdioServerParameters(command="python", args=[str(server_path), str(args.enable_fs)])
+            server_params = StdioServerParameters(command=sys.executable, args=[str(server_path), str(args.enable_fs)])
             try:
                 # Use stack to manage context lifecycle
                 read, write = await stack.enter_async_context(stdio_client(server_params))
@@ -742,7 +742,7 @@ async def main_async(argv: list[str] | None = None) -> int:
         # 2. Image Generation Server
         if args.enable_image:
             server_path = Path(__file__).parent / "image_gen_server.py"
-            server_params = StdioServerParameters(command="python", args=[str(server_path)])
+            server_params = StdioServerParameters(command=sys.executable, args=[str(server_path)])
             try:
                 read, write = await stack.enter_async_context(stdio_client(server_params))
                 session = await stack.enter_async_context(ClientSession(read, write))
@@ -754,7 +754,7 @@ async def main_async(argv: list[str] | None = None) -> int:
         # 3. Voice Server
         if args.enable_voice:
             server_path = Path(__file__).parent / "voice_server.py"
-            server_params = StdioServerParameters(command="python", args=[str(server_path)])
+            server_params = StdioServerParameters(command=sys.executable, args=[str(server_path)])
             try:
                 read, write = await stack.enter_async_context(stdio_client(server_params))
                 session = await stack.enter_async_context(ClientSession(read, write))
@@ -766,7 +766,7 @@ async def main_async(argv: list[str] | None = None) -> int:
         # 4. Multimedia Server (Webcam & STT)
         if hasattr(args, 'enable_webcam') and (args.enable_webcam or args.enable_stt):
             server_path = Path(__file__).parent / "multimedia_server.py"
-            server_params = StdioServerParameters(command="python", args=[str(server_path)])
+            server_params = StdioServerParameters(command=sys.executable, args=[str(server_path)])
             try:
                 read, write = await stack.enter_async_context(stdio_client(server_params))
                 session = await stack.enter_async_context(ClientSession(read, write))
@@ -778,7 +778,7 @@ async def main_async(argv: list[str] | None = None) -> int:
         # 5. Video Server (OpenShot)
         if hasattr(args, 'enable_video') and args.enable_video:
             server_path = Path(__file__).parent / "openshot_server.py"
-            server_params = StdioServerParameters(command="python", args=[str(server_path)])
+            server_params = StdioServerParameters(command=sys.executable, args=[str(server_path)])
             try:
                 read, write = await stack.enter_async_context(stdio_client(server_params))
                 session = await stack.enter_async_context(ClientSession(read, write))
@@ -790,7 +790,7 @@ async def main_async(argv: list[str] | None = None) -> int:
         # 6. YouTube Server
         if hasattr(args, 'enable_youtube') and args.enable_youtube:
             server_path = Path(__file__).parent / "youtube_server.py"
-            server_params = StdioServerParameters(command="python", args=[str(server_path)])
+            server_params = StdioServerParameters(command=sys.executable, args=[str(server_path)])
             try:
                 read, write = await stack.enter_async_context(stdio_client(server_params))
                 session = await stack.enter_async_context(ClientSession(read, write))
@@ -802,7 +802,7 @@ async def main_async(argv: list[str] | None = None) -> int:
         # 7. Konyks Server
         if hasattr(args, 'enable_konyks') and args.enable_konyks:
             server_path = Path(__file__).parent / "konyks_server.py"
-            server_params = StdioServerParameters(command="python", args=[str(server_path)])
+            server_params = StdioServerParameters(command=sys.executable, args=[str(server_path)])
             try:
                 read, write = await stack.enter_async_context(stdio_client(server_params))
                 session = await stack.enter_async_context(ClientSession(read, write))
@@ -814,7 +814,7 @@ async def main_async(argv: list[str] | None = None) -> int:
         # 8. Spotify Server
         if hasattr(args, 'enable_spotify') and args.enable_spotify:
             server_path = Path(__file__).parent / "spotify_server.py"
-            server_params = StdioServerParameters(command="python", args=[str(server_path)])
+            server_params = StdioServerParameters(command=sys.executable, args=[str(server_path)])
             try:
                 read, write = await stack.enter_async_context(stdio_client(server_params))
                 session = await stack.enter_async_context(ClientSession(read, write))
