@@ -314,13 +314,13 @@ def build_parser() -> argparse.ArgumentParser:
 # Configuration Helpers
 async def setup_spotify_config(console, settings_dict):
     console.print("\n[bold cyan]Spotify Configuration[/bold cyan]")
-    cid = await asyncio.to_thread(prompt, "Enter SPOTIPY_CLIENT_ID: ")
-    sec = await asyncio.to_thread(prompt, "Enter SPOTIPY_CLIENT_SECRET: ")
-    red = await asyncio.to_thread(prompt, "Enter SPOTIPY_REDIRECT_URI [default: http://127.0.0.1:8888/callback]: ")
+    cid = await asyncio.to_thread(prompt, "Enter SPOTIPY_CLIENT_ID: ", default=settings_dict.get('SPOTIPY_CLIENT_ID', ''))
+    sec = await asyncio.to_thread(prompt, "Enter SPOTIPY_CLIENT_SECRET: ", default=settings_dict.get('SPOTIPY_CLIENT_SECRET', ''))
+    red = await asyncio.to_thread(prompt, "Enter SPOTIPY_REDIRECT_URI: ", default=settings_dict.get('SPOTIPY_REDIRECT_URI', 'http://127.0.0.1:8888/callback'))
     
     settings_dict['SPOTIPY_CLIENT_ID'] = cid.strip()
     settings_dict['SPOTIPY_CLIENT_SECRET'] = sec.strip()
-    settings_dict['SPOTIPY_REDIRECT_URI'] = red.strip() or "http://127.0.0.1:8888/callback"
+    settings_dict['SPOTIPY_REDIRECT_URI'] = red.strip()
     save_settings(settings_dict)
     
     # Attempt to trigger OAuth flow immediately
@@ -360,15 +360,15 @@ async def setup_spotify_config(console, settings_dict):
 
 async def setup_konyks_config(console, settings_dict):
     console.print("\n[bold cyan]Konyks (Tuya) Configuration[/bold cyan]")
-    cid = await asyncio.to_thread(prompt, "Enter TUYA_CLIENT_ID (Access ID): ")
-    sec = await asyncio.to_thread(prompt, "Enter TUYA_CLIENT_SECRET (Access Secret): ")
-    uid = await asyncio.to_thread(prompt, "Enter TUYA_UID (User ID): ")
-    reg = await asyncio.to_thread(prompt, "Enter TUYA_BASE_URL [default: https://openapi.tuyaeu.com]: ")
+    cid = await asyncio.to_thread(prompt, "Enter TUYA_CLIENT_ID (Access ID): ", default=settings_dict.get('TUYA_CLIENT_ID', ''))
+    sec = await asyncio.to_thread(prompt, "Enter TUYA_CLIENT_SECRET (Access Secret): ", default=settings_dict.get('TUYA_CLIENT_SECRET', ''))
+    uid = await asyncio.to_thread(prompt, "Enter TUYA_UID (User ID): ", default=settings_dict.get('TUYA_UID', ''))
+    reg = await asyncio.to_thread(prompt, "Enter TUYA_BASE_URL: ", default=settings_dict.get('TUYA_BASE_URL', 'https://openapi.tuyaeu.com'))
     
     settings_dict['TUYA_CLIENT_ID'] = cid.strip()
     settings_dict['TUYA_CLIENT_SECRET'] = sec.strip()
     settings_dict['TUYA_UID'] = uid.strip()
-    settings_dict['TUYA_BASE_URL'] = reg.strip() or "https://openapi.tuyaeu.com"
+    settings_dict['TUYA_BASE_URL'] = reg.strip()
     save_settings(settings_dict)
     console.print("[green]Konyks settings saved![/green]")
 
