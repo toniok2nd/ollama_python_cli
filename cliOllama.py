@@ -277,8 +277,10 @@ def build_parser() -> argparse.ArgumentParser:
         parser.add_argument("--enable-spotify", action='store_true', help="Enable MCP Spotify playback tools.")
 
     # Configuration convenience flags – do not require a server to be running.
-    parser.add_argument("--config-spotify", action='store_true', help="Interactively setup Spotify API credentials in settings.json.")
-    parser.add_argument("--config-konyks", action='store_true', help="Interactively setup Konyks (Tuya) API credentials in settings.json.")
+    if (curr_dir / "spotify_server.py").exists():
+        parser.add_argument("--config-spotify", action='store_true', help="Interactively setup Spotify API credentials in settings.json.")
+    if (curr_dir / "konyks_server.py").exists():
+        parser.add_argument("--config-konyks", action='store_true', help="Interactively setup Konyks (Tuya) API credentials in settings.json.")
 
     return parser
 
@@ -352,25 +354,29 @@ async def setup_konyks_config(console, settings_dict):
 # Helper for displaying the list of internal commands.
 # ---------------------------------------------------------------------------
 def show_internal_options(console):
-    options = """
-    Here are your options
-    ---------------------
-    exit => to quit
-    /?   => to show this help
-    /save => to save current CHAT
-    /load => to load saved CHAT
-    /settings => to show settings.json content and path
-    !   => to run shell command (e.g. !ls)
-    EOF => to valide prompt input
-    >> => show all code blocks available
-    >>0 => show code block 0 and add it to clipboard buffer
-    || => show all tables available
-    ||0 => show table 0 and add it to clipboard buffer
-    << => toggle voice recording (requires --enable-tss)
-    /config-spotify => setup Spotify API credentials
-    /config-konyks => setup Konyks (Tuya) API credentials
-    """
-    console.print(options, style="red")
+    options = [
+        "    Here are your options",
+        "    ---------------------",
+        "    exit => to quit",
+        "    /?   => to show this help",
+        "    /save => to save current CHAT",
+        "    /load => to load saved CHAT",
+        "    /settings => to show settings.json content and path",
+        "    !   => to run shell command (e.g. !ls)",
+        "    EOF => to valide prompt input",
+        "    >> => show all code blocks available",
+        "    >>0 => show code block 0 and add it to clipboard buffer",
+        "    || => show all tables available",
+        "    ||0 => show table 0 and add it to clipboard buffer",
+        "    << => toggle voice recording (requires --enable-tss)"
+    ]
+    curr_dir = Path(__file__).parent
+    if (curr_dir / "spotify_server.py").exists():
+        options.append("    /config-spotify => setup Spotify API credentials")
+    if (curr_dir / "konyks_server.py").exists():
+        options.append("    /config-konyks => setup Konyks (Tuya) API credentials")
+    
+    console.print("\n".join(options), style="red")
 
 # ---------------------------------------------------------------------------
 # Main asynchronous entry point – parses arguments, starts optional MCP servers,
@@ -448,9 +454,13 @@ async def main_async(argv: list[str] | None = None) -> int:
         nonlocal buffer, messages, last_save_file, auto_save_enabled, model
         # Define a tiny completer that only offers completions at start‑of‑line.
         internal_commands = [
-            'exit', '/?', '/save', '/load', '/settings', '/style', '/eof', '!', '/auto', 'EOF', '>>', '||', '<<',
-            '/config-spotify', '/config-konyks'
+            'exit', '/?', '/save', '/load', '/settings', '/style', '/eof', '!', '/auto', 'EOF', '>>', '||', '<<'
         ]
+        curr_dir = Path(__file__).parent
+        if (curr_dir / "spotify_server.py").exists():
+            internal_commands.append('/config-spotify')
+        if (curr_dir / "konyks_server.py").exists():
+            internal_commands.append('/config-konyks')
         from prompt_toolkit.completion import Completion
         class StartOfLineCompleter(Completer):
             def get_completions(self, document, complete_event):
