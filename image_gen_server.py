@@ -1,12 +1,7 @@
+from mcp.server.fastmcp import FastMCP
 import asyncio
-import base64
-import json
-import os
-import sys
-import uuid
-from typing import Any, Dict, List, Optional
-from dataclasses import dataclass
-from pathlib import Path
+import urllib.parse
+from typing import Optional
 
 # Check for httpx
 try:
@@ -14,169 +9,44 @@ try:
 except ImportError:
     httpx = None
 
-from mcp.server.stdio import stdio_server
-from mcp.server import Server, NotificationOptions
-from mcp.server.models import InitializationOptions
-from mcp.types import (
-    Resource,
-    Tool,
-    TextContent,
-    ImageContent,
-    EmbeddedResource,
-    CallToolResult,
-)
+# Initialize FastMCP Server
+mcp = FastMCP("image-gen-server")
 
-# Initialize MCP Server
-server = Server("image-gen-server")
-
-@server.list_tools()
-async def handle_list_tools() -> List[Tool]:
-    """List available image generation tools."""
-    return [
-        Tool(
-            name="generate_image",
-            description="Generate an image from a text prompt using Pollinations AI. No API key required.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "prompt": {
-                        "type": "string", 
-                        "description": "Text description of the image to generate"
-                    },
-                    "width": {
-                        "type": "integer",
-                        "description": "Image width (default 1024)",
-                        "default": 1024
-                    },
-                    "height": {
-                        "type": "integer",
-                        "description": "Image height (default 1024)",
-                        "default": 1024
-                    },
-                    "seed": {
-                        "type": "integer",
-                        "description": "Random seed for reproducibility",
-                        "default": 42
-                    },
-                    "filename": {
-                        "type": "string",
-                        "description": "Optional filename to save the image (e.g. 'cat.png'). If provided, image will be saved to the current directory."
-                    }
-                },
-                "required": ["prompt"],
-            },
-        )
-    ]
-
-@server.call_tool()
-async def handle_call_tool(
-    name: str, arguments: Dict[str, Any] | None
-) -> CallToolResult:
-    """Handle image generation tool calls."""
-    if name != "generate_image":
-        raise ValueError(f"Unknown tool: {name}")
-
+@mcp.tool()
+async def generate_image(prompt: str, width: int = 1024, height: int = 1024, seed: int = 42, filename: Optional[str] = None) -> str:
+    """
+    Generate an image from a text prompt using Pollinations AI. No API key required.
+    
+    Args:
+        prompt: Text description of the image to generate.
+        width: Image width (default 1024).
+        height: Image height (default 1024).
+        seed: Random seed for reproducibility (default 42).
+        filename: Optional filename to save the image (e.g., 'cat.png'). If provided, image will be saved to the current directory.
+    """
     if httpx is None:
-        return CallToolResult(
-            content=[TextContent(type="text", text="Error: 'httpx' library not installed. Please install the 'Medium' or 'Full' tier.")],
-            isError=True
-        )
+        return "Error: 'httpx' library not installed. Please install the 'Medium' or 'Full' tier."
 
-    if not arguments:
-        raise ValueError("Missing arguments")
-
-    prompt = arguments["prompt"]
-    width = arguments.get("width", 1024)
-    height = arguments.get("height", 1024)
-    seed = arguments.get("seed", 42)
-    filename = arguments.get("filename")
-
-    # Construct Pollinations AI URL
-    import urllib.parse
     encoded_prompt = urllib.parse.quote(prompt)
     url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&seed={seed}&nologo=true"
 
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(url, timeout=30.0)
-            response.raise_for_status()
-            image_data = response.content
-
-        results = []
-        
-        # 1. Optionally save to file
-        save_msg = ""
-        if filename:
-            # Ensure safe filename
-            safe_filename = "".join([c for c in filename if c.isalnum() or c in "._-"]).strip()
-            if not safe_filename:
-                safe_filename = f"gen_{uuid.uuid4().hex[:8]}.png"
+            if response.status_code != 200:
+                return f"Error: Failed to generate image. Status code: {response.status_code}"
             
-            with open(safe_filename, 'wb') as f:
-                f.write(image_data)
-            save_msg = f"\nImage saved to: {safe_filename}"
-            results.append(TextContent(type="text", text=f"Success! {save_msg}"))
-
-        # 2. Return as ImageContent
-        base64_image = base64.b64encode(image_data).decode("utf-8")
-        results.append(ImageContent(
-            type="image",
-            data=base64_image,
-            mimeType="image/png"
-        ))
-
-        return CallToolResult(content=results)
-
+            image_data = response.content
+            
+            if filename:
+                with open(filename, "wb") as f:
+                    f.write(image_data)
+                return f"Image generated and saved to {filename}"
+            else:
+                return f"Image generated successfully at {url}"
+                
     except Exception as e:
-        return CallToolResult(
-            content=[TextContent(type="text", text=f"Error generating image: {str(e)}")],
-            isError=True
-        )
-
-async def main():
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            InitializationOptions(
-                server_name="image-gen-server",
-                server_version="0.1.0",
-                capabilities=server.get_capabilities(
-                    notification_options=NotificationOptions(),
-                    experimental_capabilities={},
-                ),
-            ),
-        )
+        return f"Error connecting to image generation service: {e}"
 
 if __name__ == "__main__":
-    import os
-    import sys
-    # Recursive cleaner: if we detecting we are in a "dirty" environment that prints 
-    # things on startup (like "Welcome back"), we re-run ourselves and filter stdout.
-    if os.environ.get("MCP_CLEANER_OK") != "TRUE":
-        import subprocess
-        new_env = os.environ.copy()
-        new_env["MCP_CLEANER_OK"] = "TRUE"
-        proc = subprocess.Popen(
-            [sys.executable] + sys.argv, 
-            stdout=subprocess.PIPE, 
-            stdin=sys.stdin, 
-            stderr=sys.stderr, 
-            env=new_env
-        )
-        
-        # Filter EVERY line of stdout to ensure only valid JSON-RPC reaches the client
-        for line in proc.stdout:
-            stripped = line.strip()
-            if stripped.startswith(b'{'):
-                sys.stdout.buffer.write(line)
-                sys.stdout.buffer.flush()
-            elif stripped:
-                # Redirect noise to stderr for debugging
-                sys.stderr.buffer.write(b"[DEBUG] Discarded noise: " + line)
-                sys.stderr.flush()
-        
-        sys.exit(proc.wait())
-    else:
-        # We are the "clean" child process
-        asyncio.run(main())
+    mcp.run(transport='stdio')

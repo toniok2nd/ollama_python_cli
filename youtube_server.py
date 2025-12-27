@@ -1,17 +1,5 @@
-import sys
-import asyncio
-import json
-from mcp.server.stdio import stdio_server
-from mcp.types import (
-    Resource,
-    Tool,
-    TextContent,
-    ImageContent,
-    EmbeddedResource,
-    CallToolResult,
-)
-from mcp.server import Server, NotificationOptions
-from mcp.server.models import InitializationOptions
+from mcp.server.fastmcp import FastMCP
+import re
 
 # Optional dependencies handled gracefully
 try:
@@ -25,51 +13,11 @@ try:
 except ImportError:
     YouTubeTranscriptApi = None
 
-server = Server("youtube-mcp-server")
-
-@server.list_tools()
-async def handle_list_tools() -> list[Tool]:
-    """List available YouTube tools."""
-    return [
-        Tool(
-            name="search_youtube",
-            description="Search for YouTube videos by query. Returns titles, links, and snippets.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "Search terms"},
-                    "limit": {"type": "integer", "description": "Max results to return", "default": 5},
-                },
-                "required": ["query"],
-            },
-        ),
-        Tool(
-            name="get_youtube_transcript",
-            description="Get the transcript/subtitles for a YouTube video URL or ID.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "video_id_or_url": {"type": "string", "description": "YouTube video URL or Video ID"},
-                },
-                "required": ["video_id_or_url"],
-            },
-        ),
-        Tool(
-            name="get_youtube_info",
-            description="Get detailed metadata for a YouTube video (title, views, description).",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "video_id_or_url": {"type": "string", "description": "YouTube video URL or Video ID"},
-                },
-                "required": ["video_id_or_url"],
-            },
-        ),
-    ]
+# Initialize FastMCP Server
+mcp = FastMCP("youtube-mcp-server")
 
 def extract_video_id(url_or_id: str) -> str:
     """Helper to extract video ID from various URL formats."""
-    import re
     if len(url_or_id) == 11 and re.match(r'^[a-zA-Z0-9_-]{11}$', url_or_id):
         return url_or_id
     
@@ -84,106 +32,73 @@ def extract_video_id(url_or_id: str) -> str:
             return match.group(1)
     return url_or_id
 
-@server.call_tool()
-async def handle_call_tool(name: str, arguments: dict | None) -> CallToolResult:
-    """Handle YouTube tool calls."""
-    if not arguments:
-        return CallToolResult(content=[TextContent(type="text", text="Error: Missing arguments")], isError=True)
-
-    if name == "search_youtube":
-        if not VideosSearch:
-            return CallToolResult(content=[TextContent(type="text", text="Error: youtube-search-python not installed")], isError=True)
+@mcp.tool()
+def search_youtube(query: str, limit: int = 5) -> str:
+    """
+    Search for YouTube videos by query. Returns titles, links, and snippets.
+    
+    Args:
+        query: Search terms.
+        limit: Max results to return (default 5).
+    """
+    if not VideosSearch:
+        return "Error: youtube-search-python not installed. Please install the 'Full' tier."
+    
+    try:
+        search = VideosSearch(query, limit=limit)
+        result = search.result()
         
-        query = arguments.get("query")
-        limit = arguments.get("limit", 5)
-        try:
-            search = VideosSearch(query, limit=limit)
-            result = search.result()
-            
-            output = []
-            for v in result.get('result', []):
-                output.append(f"Title: {v['title']}\nURL: {v['link']}\nDuration: {v['duration']}\nDescription: {v.get('accessibility', {}).get('title', 'N/A')}\n---")
-            
-            return CallToolResult(content=[TextContent(type="text", text="\n".join(output) if output else "No results found.")])
-        except Exception as e:
-            return CallToolResult(content=[TextContent(type="text", text=f"Error performing search: {str(e)}")], isError=True)
-
-    elif name == "get_youtube_transcript":
-        if not YouTubeTranscriptApi:
-            return CallToolResult(content=[TextContent(type="text", text="Error: youtube-transcript-api not installed")], isError=True)
+        output = []
+        for v in result.get('result', []):
+            output.append(f"Title: {v['title']}\nURL: {v['link']}\nDuration: {v['duration']}\nDescription: {v.get('accessibility', {}).get('title', 'N/A')}\n---")
         
-        video_id = extract_video_id(arguments.get("video_id_or_url"))
-        try:
-            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-            full_text = " ".join([t['text'] for t in transcript_list])
-            return CallToolResult(content=[TextContent(type="text", text=full_text)])
-        except Exception as e:
-            return CallToolResult(content=[TextContent(type="text", text=f"Error fetching transcript: {str(e)}")], isError=True)
+        return "\n".join(output) if output else "No results found."
+    except Exception as e:
+        return f"Error performing search: {e}"
 
-    elif name == "get_youtube_info":
-        if not Video:
-            return CallToolResult(content=[TextContent(type="text", text="Error: youtube-search-python not installed")], isError=True)
-        
-        video_id = extract_video_id(arguments.get("video_id_or_url"))
-        try:
-            v_info = Video.getInfo(f"https://www.youtube.com/watch?v={video_id}")
-            info_text = (
-                f"Title: {v_info.get('title')}\n"
-                f"Author: {v_info.get('author', {}).get('name')}\n"
-                f"Views: {v_info.get('viewCount', {}).get('text')}\n"
-                f"Date: {v_info.get('publishDate')}\n"
-                f"Description: {v_info.get('description')[:500]}..."
-            )
-            return CallToolResult(content=[TextContent(type="text", text=info_text)])
-        except Exception as e:
-            return CallToolResult(content=[TextContent(type="text", text=f"Error getting info: {str(e)}")], isError=True)
+@mcp.tool()
+def get_youtube_transcript(video_id_or_url: str) -> str:
+    """
+    Get the transcript/subtitles for a YouTube video URL or ID.
+    
+    Args:
+        video_id_or_url: YouTube video URL or Video ID.
+    """
+    if not YouTubeTranscriptApi:
+        return "Error: youtube-transcript-api not installed. Please install the 'Full' tier."
+    
+    video_id = extract_video_id(video_id_or_url)
+    try:
+        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+        full_text = " ".join([t['text'] for t in transcript_list])
+        return full_text
+    except Exception as e:
+        return f"Error fetching transcript: {e}"
 
-    return CallToolResult(content=[TextContent(type="text", text=f"Unknown tool: {name}")], isError=True)
-
-async def main():
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            InitializationOptions(
-                server_name="youtube-mcp-server",
-                server_version="0.1.0",
-                capabilities=server.get_capabilities(
-                    notification_options=NotificationOptions(),
-                    experimental_capabilities={},
-                ),
-            ),
+@mcp.tool()
+def get_youtube_info(video_id_or_url: str) -> str:
+    """
+    Get detailed metadata for a YouTube video (title, views, description).
+    
+    Args:
+        video_id_or_url: YouTube video URL or Video ID.
+    """
+    if not Video:
+        return "Error: youtube-search-python not installed. Please install the 'Full' tier."
+    
+    video_id = extract_video_id(video_id_or_url)
+    try:
+        v_info = Video.getInfo(f"https://www.youtube.com/watch?v={video_id}")
+        info_text = (
+            f"Title: {v_info.get('title')}\n"
+            f"Author: {v_info.get('author', {}).get('name')}\n"
+            f"Views: {v_info.get('viewCount', {}).get('text')}\n"
+            f"Date: {v_info.get('publishDate')}\n"
+            f"Description: {v_info.get('description')[:500]}..."
         )
+        return info_text
+    except Exception as e:
+        return f"Error getting info: {e}"
 
 if __name__ == "__main__":
-    import os
-    import sys
-    # Recursive cleaner: if we detecting we are in a "dirty" environment that prints 
-    # things on startup (like "Welcome back"), we re-run ourselves and filter stdout.
-    if os.environ.get("MCP_CLEANER_OK") != "TRUE":
-        import subprocess
-        new_env = os.environ.copy()
-        new_env["MCP_CLEANER_OK"] = "TRUE"
-        proc = subprocess.Popen(
-            [sys.executable] + sys.argv, 
-            stdout=subprocess.PIPE, 
-            stdin=sys.stdin, 
-            stderr=sys.stderr, 
-            env=new_env
-        )
-        
-        # Filter EVERY line of stdout to ensure only valid JSON-RPC reaches the client
-        for line in proc.stdout:
-            stripped = line.strip()
-            if stripped.startswith(b'{'):
-                sys.stdout.buffer.write(line)
-                sys.stdout.buffer.flush()
-            elif stripped:
-                # Redirect noise to stderr for debugging
-                sys.stderr.buffer.write(b"[DEBUG] Discarded noise: " + line)
-                sys.stderr.flush()
-        
-        sys.exit(proc.wait())
-    else:
-        # We are the "clean" child process
-        asyncio.run(main())
+    mcp.run(transport='stdio')

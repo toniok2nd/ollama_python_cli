@@ -1,170 +1,74 @@
+from mcp.server.fastmcp import FastMCP
 import asyncio
 import os
-import shutil
-import subprocess
-import tempfile
-from typing import Any, Dict, List, Optional
-# edge_tts will be imported locally in handle_call_tool
-from mcp.server.stdio import stdio_server
-from mcp.server import Server, NotificationOptions
-from mcp.server.models import InitializationOptions
-from mcp.types import (
-    Tool,
-    TextContent,
-    CallToolResult,
-)
+import uuid
+import sys
+from concurrent.futures import ThreadPoolExecutor
 
-# Initialize MCP Server
-server = Server("voice-server")
+# Initialize FastMCP Server
+mcp = FastMCP("voice-server")
 
-@server.list_tools()
-async def handle_list_tools() -> List[Tool]:
-    """List available voice tools."""
-    return [
-        Tool(
-            name="speak",
-            description="Convert text to speech and play it on the system speakers using Microsoft Edge TTS.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "text": {
-                        "type": "string",
-                        "description": "The text to speak"
-                    },
-                    "voice": {
-                        "type": "string",
-                        "description": "Optional voice name (e.g., 'en-US-AvaNeural', 'en-GB-SoniaNeural'). Default is a clear US English voice.",
-                        "default": "en-US-AvaNeural"
-                    },
-                    "rate": {
-                        "type": "string",
-                        "description": "Speed of speech (e.g., '+0%', '-10%')",
-                        "default": "+0%"
-                    }
-                },
-                "required": ["text"],
-            },
-        )
-    ]
+async def run_tts(text: str, voice: str, output_file: str) -> None:
+    """Helper to run edge-tts command."""
+    import edge_tts
+    communicate = edge_tts.Communicate(text, voice)
+    await communicate.save(output_file)
 
-async def play_audio(file_path: str):
-    """Play audio using a system player."""
-    # Try common CLI players
-    players = ["mpv", "ffplay", "vlc", "aplay"]
+def play_audio(file_path: str):
+    """Helper to play audio using minimal dependencies or tools."""
+    # Try different players
+    players = ["ffplay", "aplay", "paplay", "mpg123"]
     for player in players:
-        if shutil.which(player):
-            if player == "ffplay":
-                # -nodisp -autoexit avoids opening a window
-                cmd = ["ffplay", "-nodisp", "-autoexit", file_path]
-            elif player == "vlc":
-                cmd = ["cvlc", "--play-and-exit", file_path]
-            else:
-                cmd = [player, file_path]
-            
-            try:
-                # Run in background to not block the server if needed? 
-                # Actually, for TTS, sequential might be better or handled by the caller.
-                subprocess.run(cmd, check=True, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
-                return True
-            except Exception:
-                continue
-    return False
-
-@server.call_tool()
-async def handle_call_tool(
-    name: str, arguments: Dict[str, Any] | None
-) -> CallToolResult:
-    """Handle voice tool calls."""
-    if name != "speak":
-        raise ValueError(f"Unknown tool: {name}")
-
-    try:
-        import edge_tts as _edge_tts
-    except ImportError:
-        return CallToolResult(
-            content=[TextContent(type="text", text="Error: 'edge-tts' library not installed. Please install the 'Medium' or 'Full' tier.")],
-            isError=True
-        )
-
-    text = arguments["text"]
-    voice = arguments.get("voice", "en-US-AvaNeural")
-    rate = arguments.get("rate", "+0%")
-
-    try:
-        # Generate speech to a temporary file
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-            tmp_path = tmp.name
-
-        communicate = _edge_tts.Communicate(text, voice, rate=rate)
-        await communicate.save(tmp_path)
-
-        # Play the audio
-        played = await play_audio(tmp_path)
-        
-        # Cleanup
         try:
-            os.remove(tmp_path)
-        except Exception:
-            pass
+            import subprocess
+            # Use -nodisp -autoexit for ffplay to be unobtrusive
+            args = [player, file_path]
+            if player == "ffplay":
+                args.extend(["-nodisp", "-autoexit", "-loglevel", "quiet"])
+            
+            subprocess.run(args, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            continue
+    # Fallback to printing path if no player found
+    print(f"Audio saved to {file_path}. Please open it manually.")
 
-        if played:
-            return CallToolResult(content=[TextContent(type="text", text=f"Success! Spoke: '{text[:50]}...'" )])
-        else:
-            return CallToolResult(
-                content=[TextContent(type="text", text="Speech generated but no audio player found (mpv, ffplay, vlc).")],
-                isError=True
-            )
+@mcp.tool()
+async def speak_text(text: str, voice: str = "en-US-AriaNeural") -> str:
+    """
+    Convert text to speech and play it locally.
+    
+    Args:
+        text: The text to speak.
+        voice: The voice to use (default: en-US-AriaNeural).
+    """
+    try:
+        import edge_tts
+    except ImportError:
+        return "Error: 'edge-tts' library not installed. Please install the 'Medium' or 'Full' tier."
 
+    # Generate a temporary file
+    output_file = f"speech_{uuid.uuid4().hex}.mp3"
+    
+    try:
+        await run_tts(text, voice, output_file)
+        
+        # Play in a separate thread to not block completely, 
+        # but for this simple tool satisfying the user immediately is fine.
+        # However, playing audio blocks. Let's do it in a thread executor if typically long.
+        # For CLI usage, blocking until speech is done is actually often desired to avoid overlap.
+        # But let's run in executor to keep the event loop moving if needed.
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor() as pool:
+            await loop.run_in_executor(pool, play_audio, output_file)
+
+        # Cleanup
+        if os.path.exists(output_file):
+            os.remove(output_file)
+            
+        return f"Spoken: '{text}'"
     except Exception as e:
-        return CallToolResult(
-            content=[TextContent(type="text", text=f"Error in voice synthesis: {str(e)}")],
-            isError=True
-        )
-
-async def main():
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            InitializationOptions(
-                server_name="voice-server",
-                server_version="0.1.0",
-                capabilities=server.get_capabilities(
-                    notification_options=NotificationOptions(),
-                    experimental_capabilities={},
-                ),
-            ),
-        )
+        return f"Error in text-to-speech: {e}"
 
 if __name__ == "__main__":
-    import os
-    import sys
-    # Recursive cleaner: if we detecting we are in a "dirty" environment that prints 
-    # things on startup (like "Welcome back"), we re-run ourselves and filter stdout.
-    if os.environ.get("MCP_CLEANER_OK") != "TRUE":
-        import subprocess
-        new_env = os.environ.copy()
-        new_env["MCP_CLEANER_OK"] = "TRUE"
-        proc = subprocess.Popen(
-            [sys.executable] + sys.argv, 
-            stdout=subprocess.PIPE, 
-            stdin=sys.stdin, 
-            stderr=sys.stderr, 
-            env=new_env
-        )
-        
-        # Filter EVERY line of stdout to ensure only valid JSON-RPC reaches the client
-        for line in proc.stdout:
-            stripped = line.strip()
-            if stripped.startswith(b'{'):
-                sys.stdout.buffer.write(line)
-                sys.stdout.buffer.flush()
-            elif stripped:
-                # Redirect noise to stderr for debugging
-                sys.stderr.buffer.write(b"[DEBUG] Discarded noise: " + line)
-                sys.stderr.flush()
-        
-        sys.exit(proc.wait())
-    else:
-        # We are the "clean" child process
-        asyncio.run(main())
+    mcp.run(transport='stdio')

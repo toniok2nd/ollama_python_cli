@@ -1,9 +1,7 @@
-import asyncio
+from mcp.server.fastmcp import FastMCP
 import os
 import json
-import sys
-import webbrowser
-from typing import Any, Dict, List, Optional
+from typing import Dict, Optional
 from pathlib import Path
 
 # Check for spotipy
@@ -13,18 +11,8 @@ try:
 except ImportError:
     spotipy = None
 
-from mcp.server.stdio import stdio_server
-from mcp.server import Server, NotificationOptions
-from mcp.server.models import InitializationOptions
-from mcp.types import (
-    Resource,
-    Tool,
-    TextContent,
-    CallToolResult,
-)
-
-# Initialize MCP Server
-server = Server("spotify-server")
+# Initialize FastMCP Server
+mcp = FastMCP("spotify-server")
 
 def get_config() -> Dict[str, str]:
     """Helper to get configuration from environment or settings.json."""
@@ -77,196 +65,115 @@ def get_spotify_client():
         
     return spotipy.Spotify(auth_manager=auth_manager)
 
-@server.list_tools()
-async def handle_list_tools() -> List[Tool]:
-    """List available Spotify tools."""
-    return [
-        Tool(
-            name="spotify_get_current_track",
-            description="Get information about the track currently playing on Spotify.",
-            inputSchema={"type": "object", "properties": {}},
-        ),
-        Tool(
-            name="spotify_search",
-            description="Search for tracks, artists, albums, or playlists on Spotify.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "Search term"},
-                    "type": {"type": "string", "description": "Type: track, artist, album, or playlist", "default": "track"}
-                },
-                "required": ["query"],
-            },
-        ),
-        Tool(
-            name="spotify_play",
-            description="Play a track, album, or playlist by URI, or resume playback.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "uri": {"type": "string", "description": "Spotify URI (e.g. spotify:track:...) to play. Leave empty to resume."},
-                },
-            },
-        ),
-        Tool(
-            name="spotify_pause",
-            description="Pause Spotify playback.",
-            inputSchema={"type": "object", "properties": {}},
-        ),
-        Tool(
-            name="spotify_next",
-            description="Skip to the next track on Spotify.",
-            inputSchema={"type": "object", "properties": {}},
-        ),
-        Tool(
-            name="spotify_previous",
-            description="Skip to the previous track on Spotify.",
-            inputSchema={"type": "object", "properties": {}},
-        ),
-        Tool(
-            name="spotify_set_volume",
-            description="Set the volume for Spotify playback.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "volume_percent": {"type": "integer", "description": "Volume percentage (0-100)"},
-                },
-                "required": ["volume_percent"],
-            },
-        ),
-    ]
+def handle_spotify_error(e: Exception) -> str:
+    """Helper to format Spotify errors."""
+    if "re-authenticate" in str(e) or "http" in str(e):
+        return f"Authentication required. Please check terminal for OAuth flow or ensure credentials are correct. Error: {e}"
+    return f"Spotify Error: {e}"
 
-@server.call_tool()
-async def handle_call_tool(
-    name: str, arguments: Dict[str, Any] | None
-) -> CallToolResult:
-    """Handle Spotify tool calls."""
-    if spotipy is None:
-        return CallToolResult(
-            content=[TextContent(type="text", text="Error: 'spotipy' library not installed. Please run pip install spotipy.")],
-            isError=True
-        )
-
-    sp = get_spotify_client()
-    if sp is None:
-        return CallToolResult(
-            content=[TextContent(type="text", text="Error: Spotify credentials missing. Set SPOTIPY_CLIENT_ID and SPOTIPY_CLIENT_SECRET.")],
-            isError=True
-        )
-
+@mcp.tool()
+def spotify_get_current_track() -> str:
+    """Get information about the track currently playing on Spotify."""
     try:
-        if name == "spotify_get_current_track":
-            current = sp.current_playback()
-            if not current or not current.get("item"):
-                return CallToolResult(content=[TextContent(type="text", text="No track currently playing.")])
-            
-            track = current["item"]
-            artist = ", ".join([a["name"] for a in track["artists"]])
-            output = f"Playing: {track['name']} by {artist}\nAlbum: {track['album']['name']}\nProgress: {current['progress_ms'] // 1000}s / {track['duration_ms'] // 1000}s"
-            return CallToolResult(content=[TextContent(type="text", text=output)])
-
-        elif name == "spotify_search":
-            query = arguments["query"]
-            stype = arguments.get("type", "track")
-            results = sp.search(q=query, type=stype, limit=5)
-            
-            output = f"Search results for '{query}' ({stype}):\n"
-            if stype == "track":
-                for item in results['tracks']['items']:
-                    artists = ", ".join([a['name'] for a in item['artists']])
-                    output += f"- {item['name']} by {artists} (URI: {item['uri']})\n"
-            elif stype == "artist":
-                for item in results['artists']['items']:
-                    output += f"- {item['name']} (URI: {item['uri']})\n"
-            # ... other types can be added
-            
-            return CallToolResult(content=[TextContent(type="text", text=output)])
-
-        elif name == "spotify_play":
-            uri = arguments.get("uri")
-            if uri:
-                sp.start_playback(uris=[uri] if "track" in uri else None, context_uri=uri if "track" not in uri else None)
-                return CallToolResult(content=[TextContent(type="text", text=f"Started playing: {uri}")])
-            else:
-                sp.start_playback()
-                return CallToolResult(content=[TextContent(type="text", text="Playback resumed.")])
-
-        elif name == "spotify_pause":
-            sp.pause_playback()
-            return CallToolResult(content=[TextContent(type="text", text="Playback paused.")])
-
-        elif name == "spotify_next":
-            sp.next_track()
-            return CallToolResult(content=[TextContent(type="text", text="Skipped to next track.")])
-
-        elif name == "spotify_previous":
-            sp.previous_track()
-            return CallToolResult(content=[TextContent(type="text", text="Skipped to previous track.")])
-
-        elif name == "spotify_set_volume":
-            volume = arguments["volume_percent"]
-            sp.volume(volume)
-            return CallToolResult(content=[TextContent(type="text", text=f"Volume set to {volume}%.")])
-
-        else:
-            raise ValueError(f"Unknown tool: {name}")
-
+        sp = get_spotify_client()
+        current = sp.current_playback()
+        if not current or not current.get("item"):
+            return "No track currently playing."
+        
+        track = current["item"]
+        artist = ", ".join([a["name"] for a in track["artists"]])
+        return f"Playing: {track['name']} by {artist}\nAlbum: {track['album']['name']}\nProgress: {current['progress_ms'] // 1000}s / {track['duration_ms'] // 1000}s"
     except Exception as e:
-        # Check for authentication URL requirement
-        if "re-authenticate" in str(e) or "http" in str(e):
-            return CallToolResult(
-                content=[TextContent(type="text", text=f"Authentication required. Please check terminal for OAuth flow or ensure credentials are correct. Error: {str(e)}")],
-                isError=True
-            )
-        return CallToolResult(
-            content=[TextContent(type="text", text=f"Spotify Error: {str(e)}")],
-            isError=True
-        )
+        return handle_spotify_error(e)
 
-async def main():
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            InitializationOptions(
-                server_name="spotify-server",
-                server_version="0.1.0",
-                capabilities=server.get_capabilities(
-                    notification_options=NotificationOptions(),
-                    experimental_capabilities={},
-                ),
-            ),
-        )
+@mcp.tool()
+def spotify_search(query: str, type: str = "track") -> str:
+    """
+    Search for tracks, artists, albums, or playlists on Spotify.
+    
+    Args:
+        query: Search term.
+        type: Type: track, artist, album, or playlist (default 'track').
+    """
+    try:
+        sp = get_spotify_client()
+        results = sp.search(q=query, type=type, limit=5)
+        
+        output = f"Search results for '{query}' ({type}):\n"
+        if type == "track":
+            for item in results['tracks']['items']:
+                artists = ", ".join([a['name'] for a in item['artists']])
+                output += f"- {item['name']} by {artists} (URI: {item['uri']})\n"
+        elif type == "artist":
+            for item in results['artists']['items']:
+                output += f"- {item['name']} (URI: {item['uri']})\n"
+        return output
+    except Exception as e:
+        return handle_spotify_error(e)
+
+@mcp.tool()
+def spotify_play(uri: Optional[str] = None) -> str:
+    """
+    Play a track, album, or playlist by URI, or resume playback.
+    
+    Args:
+        uri: Spotify URI (e.g. spotify:track:...) to play. Leave empty to resume.
+    """
+    try:
+        sp = get_spotify_client()
+        if uri:
+            sp.start_playback(uris=[uri] if "track" in uri else None, context_uri=uri if "track" not in uri else None)
+            return f"Started playing: {uri}"
+        else:
+            sp.start_playback()
+            return "Playback resumed."
+    except Exception as e:
+        return handle_spotify_error(e)
+
+@mcp.tool()
+def spotify_pause() -> str:
+    """Pause Spotify playback."""
+    try:
+        sp = get_spotify_client()
+        sp.pause_playback()
+        return "Playback paused."
+    except Exception as e:
+        return handle_spotify_error(e)
+
+@mcp.tool()
+def spotify_next() -> str:
+    """Skip to the next track on Spotify."""
+    try:
+        sp = get_spotify_client()
+        sp.next_track()
+        return "Skipped to next track."
+    except Exception as e:
+        return handle_spotify_error(e)
+
+@mcp.tool()
+def spotify_previous() -> str:
+    """Skip to the previous track on Spotify."""
+    try:
+        sp = get_spotify_client()
+        sp.previous_track()
+        return "Skipped to previous track."
+    except Exception as e:
+        return handle_spotify_error(e)
+
+@mcp.tool()
+def spotify_set_volume(volume_percent: int) -> str:
+    """
+    Set the volume for Spotify playback.
+    
+    Args:
+        volume_percent: Volume percentage (0-100).
+    """
+    try:
+        sp = get_spotify_client()
+        sp.volume(volume_percent)
+        return f"Volume set to {volume_percent}%."
+    except Exception as e:
+        return handle_spotify_error(e)
 
 if __name__ == "__main__":
-    import os
-    import sys
-    # Recursive cleaner: if we detecting we are in a "dirty" environment that prints 
-    # things on startup (like "Welcome back"), we re-run ourselves and filter stdout.
-    if os.environ.get("MCP_CLEANER_OK") != "TRUE":
-        import subprocess
-        new_env = os.environ.copy()
-        new_env["MCP_CLEANER_OK"] = "TRUE"
-        proc = subprocess.Popen(
-            [sys.executable] + sys.argv, 
-            stdout=subprocess.PIPE, 
-            stdin=sys.stdin, 
-            stderr=sys.stderr, 
-            env=new_env
-        )
-        
-        # Filter EVERY line of stdout to ensure only valid JSON-RPC reaches the client
-        for line in proc.stdout:
-            stripped = line.strip()
-            if stripped.startswith(b'{'):
-                sys.stdout.buffer.write(line)
-                sys.stdout.buffer.flush()
-            elif stripped:
-                # Redirect noise to stderr for debugging
-                sys.stderr.buffer.write(b"[DEBUG] Discarded noise: " + line)
-                sys.stderr.flush()
-        
-        sys.exit(proc.wait())
-    else:
-        # We are the "clean" child process
-        asyncio.run(main())
+    mcp.run(transport='stdio')
