@@ -475,6 +475,12 @@ async def main_async(argv: list[str] | None = None) -> int:
         mdl = None  # Will hold the last MarkdownExtractor instance.
         while True:
             prompt_text = f"{Emoji('peanuts')} >> {Emoji('brain')} \n" if not buffer else ""
+            # Define style for the prompt
+            from prompt_toolkit.styles import Style
+            style_b = Style.from_dict({
+                'peanuts': '#ansigreen',
+                'brain': '#ansicyan',
+            })
             user_input = await session_input.prompt_async(
                 prompt_text,
                 style=style_b,
