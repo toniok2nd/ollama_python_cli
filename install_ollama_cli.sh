@@ -247,6 +247,8 @@ if [ -f "${REPO_BASE}/${REQ_FILE}" ]; then
         rm -f "${REPO_BASE}/openshot_server.py"
         rm -f "${REPO_BASE}/multimedia_server.py"
         rm -f "${REPO_BASE}/youtube_server.py"
+        rm -f "${REPO_BASE}/spotify_server.py"
+        rm -f "${REPO_BASE}/konyks_server.py"
     fi
     if [[ "$INSTALL_MODE" == "light" ]]; then
         log "Removing Medium-tier servers..."

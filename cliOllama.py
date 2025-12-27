@@ -709,11 +709,11 @@ async def main_async(argv: list[str] | None = None) -> int:
             except Exception as e:
                 console.print(f"[bold red]Error:[/] {script_name} failed: {e}")
 
-        if args.enable_fs:
+        if getattr(args, 'enable_fs', False):
             await start_server("simple_fs_server.py", [str(args.enable_fs)])
-        if args.enable_image:
+        if getattr(args, 'enable_image', False):
             await start_server("image_gen_server.py")
-        if args.enable_voice:
+        if getattr(args, 'enable_voice', False):
             await start_server("voice_server.py")
         if getattr(args, 'enable_webcam', False) or getattr(args, 'enable_stt', False):
             await start_server("multimedia_server.py")
