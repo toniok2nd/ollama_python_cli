@@ -415,10 +415,10 @@ async def main_async(argv: list[str] | None = None) -> int:
     # -------------------------------------------------------------------
     # Configuration flags (Spotify / Konyks) – they run and then exit.
     # -------------------------------------------------------------------
-    if args.config_spotify:
+    if getattr(args, 'config_spotify', False):
         await setup_spotify_config(console, settings)
         return 0
-    if args.config_konyks:
+    if getattr(args, 'config_konyks', False):
         await setup_konyks_config(console, settings)
         return 0
 
