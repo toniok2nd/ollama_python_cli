@@ -7,7 +7,8 @@ A powerful, feature-rich Python CLI wrapper for the official `ollama` library. T
 - **Image Generation**: Generate pictures directly from your chat using Pollinations AI (via MCP).
 - **Webcam & Multimedia**: Capture snapshots from your webcam or record voice messages for transcription (via MCP). Supports hands-free recording with the `<<` toggle.
 - **Voice Support**: Realistic text-to-speech capabilities using Microsoft Edge TTS (via MCP).
-- 🤖 **Multi-Server MCP**: Concurrent support for File System, Image Generation, Voice (TTS/STT), Webcam, YouTube, Video Editing, Smart Home (Konyks), and Spotify.
+- **Coqui TTS Support**: Optional high-quality, offline voice synthesis using Coqui TTS (via MCP).
+- 🤖 **Multi-Server MCP**: Concurrent support for File System, Image Generation, Voice (TTS/STT/Coqui), Webcam, YouTube, Video Editing, Smart Home (Konyks), and Spotify.
 - **Spotify**: Search music and control playback (play/pause/next/previous/volume) directly from the chat. **Auto-activates when configured.**
 - **Konyks / Tuya**: Control your smart home devices (lights, plugs, etc.) directly from the chat. **Auto-activates when configured.**
 - **Interactive Model Selection**: Uses `fzf` to let you choose from your locally available models.
@@ -100,6 +101,12 @@ myollama --enable-image
 Enable the voice tools to allow the AI to speak its responses.
 ```bash
 myollama --enable-voice
+```
+
+### Coqui TTS (High Quality / Offline)
+Enable the Coqui TTS tools (requires `TTS` package).
+```bash
+myollama --enable-coqui-voice
 ```
 
 ### Webcam & Recording (MCP)

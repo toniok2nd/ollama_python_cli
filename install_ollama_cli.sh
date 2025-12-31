@@ -218,7 +218,7 @@ if [[ "$INSTALL_MODE" == "prompt" ]]; then
         log "Select installation tier:"
         echo "1) Light  - Basic CLI (Fastest)"
         echo "2) Medium - adds Image Gen & Voice (Recommended)"
-        echo "3) Full   - adds Webcam, Voice Recording, YouTube & Video Editing (Heaviest)"
+        echo "3) Full   - adds Webcam, Voice Recording, YouTube, Video Editing & Offline Voice (Heaviest)"
         read -p "Select [1-3, default 1]: " tier_choice
         case "$tier_choice" in
             2) INSTALL_MODE="medium" ;;
@@ -249,6 +249,7 @@ if [ -f "${REPO_BASE}/${REQ_FILE}" ]; then
         rm -f "${REPO_BASE}/youtube_server.py"
         rm -f "${REPO_BASE}/spotify_server.py"
         rm -f "${REPO_BASE}/konyks_server.py"
+        rm -f "${REPO_BASE}/coqui_voice_server.py"
     fi
     if [[ "$INSTALL_MODE" == "light" ]]; then
         log "Removing Medium-tier servers..."

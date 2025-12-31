@@ -3,6 +3,7 @@ opencv-python
 sounddevice
 numpy
 openai-whisper
+TTS
 youtube-search-python
 youtube-transcript-api
 tuya-iot-py-sdk

@@ -263,7 +263,9 @@ def build_parser() -> argparse.ArgumentParser:
     if (curr_dir / "image_gen_server.py").exists():
         parser.add_argument("--enable-image", action='store_true', help="Enable MCP image generation tools.")
     if (curr_dir / "voice_server.py").exists():
-        parser.add_argument("--enable-voice", action='store_true', help="Enable MCP voice/speech tools.")
+        parser.add_argument("--enable-voice", action='store_true', help="Enable MCP voice/speech tools (Edge TTS).")
+    if (curr_dir / "coqui_voice_server.py").exists():
+        parser.add_argument("--enable-coqui-voice", action='store_true', help="Enable MCP Coqui TTS tools.")
     if (curr_dir / "multimedia_server.py").exists():
         parser.add_argument("--enable-webcam", action='store_true', help="Enable MCP webcam tools.")
         parser.add_argument("--enable-stt", "--enable-tss", action='store_true', help="Enable MCP speech-to-text tools.")
@@ -731,6 +733,8 @@ async def main_async(argv: list[str] | None = None) -> int:
             await start_server("image_gen_server.py")
         if getattr(args, 'enable_voice', False):
             await start_server("voice_server.py")
+        if getattr(args, 'enable_coqui_voice', False):
+            await start_server("coqui_voice_server.py")
         if getattr(args, 'enable_webcam', False) or getattr(args, 'enable_stt', False):
             await start_server("multimedia_server.py")
         if getattr(args, 'enable_video', False):
