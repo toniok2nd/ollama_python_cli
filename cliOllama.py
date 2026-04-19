@@ -71,6 +71,8 @@ def save_settings(settings_dict):
 # ---------------------------------------------------------------------------
 # Initialise global style objects based on loaded settings.
 # ---------------------------------------------------------------------------
+global style_b
+global style_g
 settings = load_settings()
 style_b = Style.from_dict({'': settings['style_b']})
 style_g = Style.from_dict({'': settings['style_g']})
@@ -479,6 +481,8 @@ async def main_async(argv: list[str] | None = None) -> int:
             prompt_text = f"{Emoji('peanuts')} >> {Emoji('brain')} \n" if not buffer else ""
             # Define style for the prompt
             from prompt_toolkit.styles import Style
+            global style_b
+            global style_g
             style_b = Style.from_dict({
                 'peanuts': '#ansigreen',
                 'brain': '#ansicyan',
