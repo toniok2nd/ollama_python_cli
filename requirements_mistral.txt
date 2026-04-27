@@ -1,0 +1,24 @@
+# Requirements for Mistral AI CLI
+# This file contains all dependencies needed for the Mistral AI Python CLI
+# with MCP (Model Context Protocol) support.
+
+# Core CLI dependencies
+rich>=13.0.0
+prompt_toolkit>=3.0.0
+pyperclip>=1.8.0
+argcomplete>=3.0.0
+
+# Mistral AI client
+mistralai>=2.0.0
+
+# MCP (Model Context Protocol)
+mcp>=1.0.0
+
+# Additional utilities
+python-dateutil>=2.8.0
+pydantic>=2.0.0
+httpx>=0.25.0
+
+# Optional: For enhanced functionality (uncomment if needed)
+# spotipy>=2.23.0        # Spotify integration
+# requests>=2.28.0       # HTTP requests for various integrations

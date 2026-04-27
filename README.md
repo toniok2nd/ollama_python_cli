@@ -1,202 +1,270 @@
-# Ollama Python CLI (via official ollama library)
+# Ollama & Mistral Python CLI
 
-A powerful, feature-rich Python CLI wrapper for the official `ollama` library. This tool enhances your local Ollama experience with interactive model selection, multi-line input, custom themes, image generation, and Model Context Protocol (MCP) integration.
+A powerful, feature-rich Python CLI wrapper for both **Ollama** (local models) and **Mistral AI** (cloud API) with Model Context Protocol (MCP) integration.
+
+---
+
+## 🤖 Choose Your Model Provider
+
+### Local Models (Ollama)
+Run open-source models locally on your machine. Free, private, no API keys needed.
+
+```bash
+curl -sSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/install_ollama_cli.sh | bash
+```
+
+### Cloud Models (Mistral AI)
+Access powerful Mistral models via API. Requires API key but no local GPU needed.
+
+```bash
+curl -sSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/install_mistral_cli.sh | bash
+```
+
+---
 
 ## ✨ Key Features
 
-- **Image Generation**: Generate pictures directly from your chat using Pollinations AI (via MCP).
-- **Webcam & Multimedia**: Capture snapshots from your webcam or record voice messages for transcription (via MCP). Supports hands-free recording with the `<<` toggle.
-- **Voice Support**: Realistic text-to-speech capabilities using Microsoft Edge TTS (via MCP).
-- **Coqui TTS Support**: Optional high-quality, offline voice synthesis using Coqui TTS (via MCP).
-- 🤖 **Multi-Server MCP**: Concurrent support for File System, Image Generation, Voice (TTS/STT/Coqui), Webcam, YouTube, Video Editing, Smart Home (Konyks), and Spotify.
-- **Spotify**: Search music and control playback (play/pause/next/previous/volume) directly from the chat. **Auto-activates when configured.**
-- **Konyks / Tuya**: Control your smart home devices (lights, plugs, etc.) directly from the chat. **Auto-activates when configured.**
-- **Interactive Model Selection**: Uses `fzf` to let you choose from your locally available models.
-- **Multi-line Input**: Supports multi-line prompts with a customizable EOF marker (default is `EOF`).
-- **MCP Integration**: Full support for Model Context Protocol. Includes a built-in File System server to let the LLM read and write files in your workspace.
-- **Rich Markdown Rendering**: Beautifully formatted responses using the `rich` library.
-- **Element Extraction**: Special commands to list and copy code blocks (`>>`) or tables (`||`) from the last response.
-- **Video Editing**: `--enable-video` (Full tier). Create OpenShot projects and render montages with FFmpeg (via MCP).
-- **YouTube**: `--enable-youtube` (Full tier). Search videos and fetch transcripts for AI analysis.
-- **Voice Trigger**: Use `<<` to toggle voice recording for hands-free prompting (requires STT).
+### Common Features (Both CLI)
+- **Interactive Model Selection**: Uses `fzf` to choose from available models.
+- **Multi-line Input**: Supports multi-line prompts with customizable EOF marker (default `EOF`).
+- **MCP Integration**: Full Model Context Protocol support for tools and extensions.
+- **Rich Markdown Rendering**: Beautifully formatted responses using `rich`.
+- **Element Extraction**: Commands to copy code blocks (`>>`) or tables (`||`) from responses.
 - **Custom Themes**: Interactively change prompt colors and styles.
-- **Shell Execution**: Run bash commands directly from the chat interface using `!` (e.g., `!ls`).
-- **Input History**: Navigate through your previous command inputs using the vertical arrow keys (Up/Down).
-- **Session Management**: Save and load chat histories. Uses a hidden `.historyList.json` file to index your sessions without cluttering your workspace.
+- **Shell Execution**: Run bash commands directly using `!` (e.g., `!ls`).
+- **Input History**: Navigate previous inputs with arrow keys.
+- **Session Management**: Save and load chat histories.
+- **Voice Trigger**: Use `<<` to toggle voice recording (requires STT server).
+
+### MCP Servers (Available for Both)
+- **File System**: Let AI read/write files in your workspace.
+- **Image Generation**: Create images via Pollinations AI (no API key).
+- **Voice TTS**: Text-to-speech with Microsoft Edge TTS.
+- **Coqui TTS**: High-quality offline voice synthesis.
+- **Webcam**: Capture snapshots for vision tasks.
+- **Speech-to-Text**: Voice recording and transcription.
+- **YouTube**: Search videos and fetch transcripts.
+- **Video Editing**: Create OpenShot projects with FFmpeg.
+- **Spotify**: Control playback and search music.
+- **Konyks/Tuya**: Smart home device control.
+
+---
 
 ## 🚀 Installation
 
-## 🛠️ Installation Tiers
+### Ollama CLI (Local Models)
 
-Choose the tier that fits your needs:
+#### Installation Tiers
 
-### 1. Light (Core Only)
-Terminal UI, History, Shell commands, and basic MCP.
+**1. Light (Core Only)**
 ```bash
 curl -sSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/install_ollama_cli.sh | bash -s -- --light
 ```
 
-### 2. Medium (Recommended)
-Adds **Image Generation** and **Voice Synthesis**.
+**2. Medium (Recommended)**
+Adds Image Generation and Voice Synthesis.
 ```bash
 curl -sSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/install_ollama_cli.sh | bash -s -- --medium
 ```
 
-### 3. Full (Multimedia, Smart Home & Music)
-Adds **Webcam Capture**, **Local Voice Recording (STT)**, **Konyks/Tuya Smart Home**, and **Spotify** support.
+**3. Full (Multimedia, Smart Home & Music)**
+Adds Webcam, Voice Recording, YouTube, Video Editing, Konyks, and Spotify.
 ```bash
 curl -sSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/install_ollama_cli.sh | bash -s -- --full
 ```
 
-> [!NOTE]
-> If you run the script without flags, it will prompt you to select a tier interactively.
+### Mistral CLI (Cloud Models)
+
+**Standard Installation**
+```bash
+curl -sSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/install_mistral_cli.sh | bash
+```
+
+**Configure API Key**
+After installation, set your Mistral API key:
+```bash
+mymistral --config-mistral
+```
+Or set environment variable:
+```bash
+export MISTRAL_API_KEY="your-api-key-here"
+```
+
+Get your API key from: https://console.mistral.ai/api-keys/
 
 ### Manual Install
+
+**Ollama:**
 ```bash
-# Clone the repository
 git clone https://github.com/toniok2nd/ollama_python_cli
 cd ollama_python_cli
-
-# Create a virtual environment
 python3 -m venv VENV
 source VENV/bin/activate
-
-# Install dependencies
 pip install -r requirements.txt
 ```
 
+**Mistral:**
+```bash
+git clone https://github.com/toniok2nd/ollama_python_cli
+cd ollama_python_cli
+python3 -m venv VENV
+source VENV/bin/activate
+pip install -r requirements_mistral.txt
+```
+
+---
+
 ## 🛠 Usage
+
+### Ollama CLI
 
 Ensure Ollama is running (`ollama serve`).
 
-### Basic Usage
-Start with interactive model selection:
+**Basic Usage:**
 ```bash
 myollama
-```
-
-Start with a specific model:
-```bash
 myollama --model mistral:latest
 ```
 
-### File System Access (MCP)
-Enable the Model Context Protocol file system tools to allow the AI to interact with your files.
-Default to current directory:
+**With MCP Servers:**
 ```bash
-myollama --enable-fs
-```
-Specify a working directory:
-```bash
-myollama --enable-fs /path/to/project
-```
-
-### Image Generation (MCP)
-Enable the image generation tools to allow the AI to create pictures. No API key is required.
-```bash
-myollama --enable-image
+myollama --enable-fs              # File system access
+myollama --enable-image           # Image generation
+myollama --enable-voice           # Text-to-speech
+myollama --enable-webcam          # Webcam capture
+myollama --enable-tss             # Speech-to-text
+myollama --enable-youtube         # YouTube search
+myollama --enable-video           # Video editing
+myollama --enable-konyks          # Smart home
+myollama --enable-spotify         # Music control
 ```
 
-### Voice Support (MCP)
-Enable the voice tools to allow the AI to speak its responses.
+### Mistral CLI
+
+**Basic Usage:**
 ```bash
-myollama --enable-voice
+mymistral
+mymistral -m mistral-small-latest
+mymistral -m mistral-large-latest
 ```
 
-### Coqui TTS (High Quality / Offline)
-Enable the Coqui TTS tools (requires `TTS` package).
+**With MCP Servers:**
 ```bash
-myollama --enable-coqui-voice
+mymistral --enable-fs
+mymistral --enable-image
+mymistral --enable-voice
+# ... (same MCP flags as Ollama CLI)
 ```
 
-### Webcam & Recording (MCP)
-Enable vision and intent tools.
-```bash
-myollama --enable-webcam --enable-tss
-```
+---
 
-### Konyks / Tuya Smart Home (MCP)
-Control your smart devices. Requires Tuya Cloud credentials in `settings.json`.
-> [!NOTE]
-> Once configured via `/config-konyks`, this server starts automatically. You only need the flag for manual overrides.
-```bash
-myollama --enable-konyks
-```
+## 🔒 Authentication & Configuration
 
-### 🔒 Authentication & Configuration
+### Mistral AI
+1. Get API key from https://console.mistral.ai/api-keys/
+2. Configure via:
+   - `mymistral --config-mistral`
+   - `/config-mistral` inside the chat
+   - `MISTRAL_API_KEY` environment variable
 
-Some MCP servers (Full tier) require credentials. You can set them via:
-1.  **CLI Flags** (Best for first-time setup and shell autocompletion):
-    ```bash
-    myollama --config-spotify
-    myollama --config-konyks
-    ```
-2.  **Slash Commands** (Inside the chat): `/config-spotify` or `/config-konyks`.
-3.  **Manual Edit**: Add keys directly to `settings.json` or as **Environment Variables**.
+### Spotify
+1. Create app on [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+2. Set Redirect URI: `http://127.0.0.1:8888/callback`
+3. Configure via `/config-spotify` inside the CLI
+
+### Konyks / Tuya Smart Home
+1. Create project on [Tuya IoT Platform](https://iot.tuya.com/)
+2. Enable Core Control and Authorization Token Management APIs
+3. Configure via `/config-konyks` with:
+   - `TUYA_CLIENT_ID`: Access ID
+   - `TUYA_CLIENT_SECRET`: Access Secret
+   - `TUYA_UID`: User ID
+   - `TUYA_BASE_URL`: (Optional) Defaults to EU region
 
 > [!TIP]
 > Run `/settings` in the app to see the path to your `settings.json` file.
 
-#### 🎵 Spotify
-1. Create an app on the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
-2. Set the Redirect URI to `http://127.0.0.1:8888/callback`.
-3. **Assisted Configuration**:
-   - Run `/config-spotify` inside `myollama`.
-   - The CLI will guide you through the login process and securely save your access token.
-   - **No manual flag required**: Once authenticated, Spotify tools are available every time you start `myollama`.
-
-> [!TIP]
-> **Why `127.0.0.1` instead of `localhost`?**
-> Spotify and many modern browsers have deprecated the string `localhost` for OAuth redirect URIs due to security policies. Using the explicit loopback IP `127.0.0.1` allows you to continue using unencrypted HTTP for local development.
-
-#### 🏠 Konyks / Tuya Smart Home
-1. Create a project on the [Tuya IoT Platform](https://iot.tuya.com/).
-2. Enable the **Core Control** and **Authorization Token Management** APIs.
-3. Link your Konyks/Tuya app account to the project.
-4. **Configuration**:
-   - `TUYA_CLIENT_ID`: Your Access ID/Client ID.
-   - `TUYA_CLIENT_SECRET`: Your Access Secret/Client Secret.
-   - `TUYA_UID`: Your User ID (found in the Cloud -> Link Tuya App Account tab).
-   - `TUYA_BASE_URL`: (Optional) Defaults to `https://openapi.tuyaeu.com` (Europe).
-
-#### 📺 YouTube
-- **No authentication required** for core search and transcript features.
-
-### Load a Previous Chat
-```bash
-myollama --load previous_session.json
-```
+---
 
 ## ⌨️ Command Reference
 
 | Command | Description |
 | --- | --- |
-| `exit` | Quit the CLI. |
-| `/?` | Show the help menu with internal options. |
-| `/save` | Save the current chat session to a JSON file. |
-| `/load` | Interactively select and load a saved chat session from history. |
-| `/settings` | Show the `settings.json` file content and path. |
-| `/style` | Interactively customize prompt colors (`style_b` and `style_g`). |
-| `/eof` | Change the multi-line input termination string (default `EOF`). |
-| `/auto` | Toggle automatic saving after each response (requires initial `/save`). |
-| `!<cmd>`| Execute a shell command and see the output (e.g., `!ls`). |
-| `>>` | List all code blocks from the last AI response. |
-| `>>[n]` | Show code block `n` and copy it to the clipboard (e.g., `>>0`). |
-| `||` | List all tables from the last AI response. |
-| `||[n]` | Show table `n` and copy it to the clipboard (e.g., `||0`). |
-| `<<` | Toggle voice recording (requires `--enable-tss`). |
-| `/config-spotify` | Interactively setup Spotify credentials in `settings.json`. |
-| `/config-konyks` | Interactively setup Konyks (Tuya) credentials in `settings.json`. |
+| `exit` | Quit the CLI |
+| `/?` | Show help menu |
+| `/save` | Save current chat session |
+| `/load` | Load saved chat session |
+| `/settings` | Show settings.json content and path |
+| `/style` | Customize prompt colors |
+| `/eof` | Change EOF marker string |
+| `/auto` | Toggle auto-save after responses |
+| `!<cmd>` | Execute shell command |
+| `>>` | List code blocks from last response |
+| `>>[n]` | Show and copy code block n |
+| `||` | List tables from last response |
+| `||[n]` | Show and copy table n |
+| `<<` | Toggle voice recording |
+| `/config-spotify` | Setup Spotify credentials |
+| `/config-konyks` | Setup Konyks/Tuya credentials |
+| `/config-mistral` | Setup Mistral API key (Mistral CLI only) |
 
-## 📁 Project Structure
-
-- `cliOllama.py`: The main entry point and terminal UI logic.
-- `chatManager.py`: Handles saving, loading, and indexing chat histories.
-- `markedownExtractor.py`: Low-level parsing for code blocks and tables in responses.
-- `simple_fs_server.py`: The MCP server implementation for file system operations.
-- `install_ollama_cli.sh` / `uninstall_ollama_cli.sh`: Installation scripts.
+---
 
 ## 🗑 Uninstallation
+
+### Ollama CLI
 ```bash
 curl -fsSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/uninstall_ollama_cli.sh | bash
 ```
+
+### Mistral CLI
+```bash
+curl -fsSL https://raw.githubusercontent.com/toniok2nd/ollama_python_cli/main/uninstall_mistral_cli.sh | bash
+```
+
+---
+
+## 📁 Project Structure
+
+- `cliOllama.py`: Main entry point for Ollama CLI
+- `cliMistral.py`: Main entry point for Mistral CLI
+- `chatManager.py`: Chat history save/load management
+- `markedownExtractor.py`: Code block and table extraction
+- `simple_fs_server.py`: MCP file system server
+- `install_ollama_cli.sh` / `uninstall_ollama_cli.sh`: Ollama install scripts
+- `install_mistral_cli.sh` / `uninstall_mistral_cli.sh`: Mistral install scripts
+- `requirements.txt`: Ollama CLI dependencies
+- `requirements_mistral.txt`: Mistral CLI dependencies
+
+---
+
+## 📋 Available Mistral Models
+
+- `mistral-large-latest` - Most powerful model
+- `mistral-small-latest` - Fast and efficient
+- `codestral-latest` - Code generation specialist
+- `pixtral-large-latest` - Multimodal (vision + text)
+- `ministral-8b-latest` - Lightweight model
+- `ministral-3b-latest` - Ultra-lightweight
+- `open-mistral-7b` - Open weights 7B
+- `open-mixtral-8x7b` - Open weights MoE
+- `open-mixtral-8x22b` - Open weights large MoE
+
+---
+
+## 🐛 Troubleshooting
+
+### Ollama CLI
+- Ensure Ollama is running: `ollama serve`
+- List models: `ollama list`
+- Pull a model: `ollama pull mistral`
+
+### Mistral CLI
+- Check API key: `echo $MISTRAL_API_KEY`
+- Test connection: Run `mymistral --config-mistral`
+- Verify package: `pip show mistralai`
+
+### Common Issues
+- **fzf not found**: Install with your package manager (`apt install fzf`, `brew install fzf`)
+- **Command not found**: Run `source ~/.bashrc` or restart terminal
+- **MCP errors**: Ensure server scripts exist in the installation directory

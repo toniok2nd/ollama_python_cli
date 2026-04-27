@@ -1,0 +1,923 @@
+from prompt_toolkit.completion import WordCompleter, Completer
+from mcp import ClientSession, StdioServerParameters
+from prompt_toolkit import PromptSession, prompt
+from markedownExtractor import MarkdownExtractor
+from mcp.client.stdio import stdio_client
+from prompt_toolkit.styles import Style
+from mcp.types import CallToolResult
+from typing import Any, Dict, Union 
+from chatManager import ChatManager
+from rich.markdown import Markdown
+from rich.console import Console
+from rich.emoji import Emoji
+from rich.text import Text
+from pathlib import Path
+from rich.live import Live
+import subprocess
+import argparse
+import pyperclip
+import asyncio
+import json
+import sys
+import re
+import argcomplete
+import os
+import uuid
+
+# Import Mistral AI client (version 2.x)
+try:
+    from mistralai.client import Mistral
+except ImportError:
+    Mistral = None
+
+
+# ---------------------------------------------------------------------------
+# Helper functions for loading and persisting user settings (styles, EOF marker,
+# voice trigger, etc.).  Settings are stored in a JSON file next to this script.
+# ---------------------------------------------------------------------------
+def load_settings():
+    """Load settings from ``settings.json`` merging with defaults.
+
+    Returns
+    -------
+    dict
+        The resulting settings dictionary.
+    """
+    settings_path = Path(__file__).parent / "settings.json"
+    defaults = {
+        "style_b": "#ffffff bg:#0e49ba",
+        "style_g": "#ffffff bg:green",
+        "eof_string": "EOF",
+        "voice_trigger": "<<",
+        "stt_duration": 10,
+        "mistral_api_key": ""
+    }
+    if settings_path.exists():
+        try:
+            with open(settings_path, 'r', encoding='utf-8') as f:
+                return {**defaults, **json.load(f)}
+        except Exception:
+            # Corrupt file – fall back to defaults silently.
+            return defaults
+    return defaults
+
+def save_settings(settings_dict):
+    """Persist ``settings_dict`` back to ``settings.json``.
+
+    Parameters
+    ----------
+    settings_dict : dict
+        Settings to write.
+    """
+    settings_path = Path(__file__).parent / "settings.json"
+    try:
+        with open(settings_path, 'w', encoding='utf-8') as f:
+            json.dump(settings_dict, f, indent=4)
+    except Exception as e:
+        print(f"Error saving settings: {e}", file=sys.stderr)
+
+# ---------------------------------------------------------------------------
+# Initialise global style objects based on loaded settings.
+# ---------------------------------------------------------------------------
+global style_b
+global style_g
+settings = load_settings()
+style_b = Style.from_dict({'': settings['style_b']})
+style_g = Style.from_dict({'': settings['style_g']})
+
+# ---------------------------------------------------------------------------
+# Core chat handling – streams responses from Mistral AI, handles tool calls,
+# and returns incremental tokens for live rendering.
+# ---------------------------------------------------------------------------
+async def run_chat_turn(client, model, messages, sessions=None):
+    """Execute a single turn of the conversation.
+
+    This function streams the Mistral AI response, detects tool calls, executes them
+    via any active MCP sessions, and yields the response tokens one‑by‑one so the
+    caller can update a live UI.
+    """
+    # -------------------------------------------------------------------
+    # Gather tool specifications from every supplied MCP session.
+    # -------------------------------------------------------------------
+    tools = []
+    tool_to_session = {}  # Map tool name → session that provides it
+    if sessions:
+        for session in sessions:
+            try:
+                result = await session.list_tools()
+                for tool in result.tools:
+                    tools.append({
+                        'type': 'function',
+                        'function': {
+                            'name': tool.name,
+                            'description': tool.description,
+                            'parameters': tool.inputSchema
+                        }
+                    })
+                    tool_to_session[tool.name] = session
+            except Exception:
+                # Silently ignore a session that cannot list its tools.
+                continue
+
+    # -------------------------------------------------------------------
+    # Main loop – we may need to iterate multiple times if the model calls
+    # tools that produce additional output.
+    # -------------------------------------------------------------------
+    while True:
+        try:
+            # Convert messages to Mistral format
+            mistral_messages = []
+            for msg in messages:
+                mistral_msg = {'role': msg['role']}
+                
+                # Handle content
+                if 'content' in msg:
+                    mistral_msg['content'] = msg['content']
+                else:
+                    mistral_msg['content'] = None
+                
+                # Handle tool_calls for assistant messages
+                if msg['role'] == 'assistant' and 'tool_calls' in msg and msg['tool_calls']:
+                    # Ensure each tool call has a valid ID
+                    formatted_tool_calls = []
+                    for tc in msg['tool_calls']:
+                        tc_formatted = {
+                            'id': tc.get('id') or f"call_{uuid.uuid4().hex[:8]}",
+                            'type': 'function',
+                            'function': {
+                                'name': tc.get('function', {}).get('name', ''),
+                                'arguments': tc.get('function', {}).get('arguments', '')
+                            }
+                        }
+                        formatted_tool_calls.append(tc_formatted)
+                    mistral_msg['tool_calls'] = formatted_tool_calls
+                
+                # Handle tool response messages - must include tool_call_id
+                if msg['role'] == 'tool':
+                    mistral_msg['name'] = msg.get('name', 'tool')
+                    # Include tool_call_id if available
+                    if 'tool_call_id' in msg:
+                        mistral_msg['tool_call_id'] = msg['tool_call_id']
+                
+                mistral_messages.append(mistral_msg)
+
+            # Stream the response from Mistral AI
+            stream = client.chat.stream(
+                model=model,
+                messages=mistral_messages,
+                tools=tools if tools else None,
+            )
+
+            final_message = {'role': 'assistant'}
+            content_parts = []
+            tool_calls_list = []
+            
+            for chunk in stream:
+                # chunk is a CompletionEvent
+                if chunk.data and chunk.data.choices and len(chunk.data.choices) > 0:
+                    delta = chunk.data.choices[0].delta
+                    
+                    # Collect text content
+                    if hasattr(delta, 'content') and delta.content:
+                        content_parts.append(delta.content)
+                        yield delta.content
+                    
+                    # Collect tool calls
+                    if hasattr(delta, 'tool_calls') and delta.tool_calls:
+                        for tc in delta.tool_calls:
+                            tool_id = getattr(tc, 'id', None)
+                            # Generate ID if not provided
+                            if not tool_id:
+                                tool_id = f"call_{uuid.uuid4().hex[:8]}"
+                            
+                            tool_call_dict = {
+                                'id': tool_id,
+                                'type': 'function',
+                                'function': {
+                                    'name': getattr(tc.function, 'name', '') if hasattr(tc, 'function') else '',
+                                    'arguments': getattr(tc.function, 'arguments', '') if hasattr(tc, 'function') else ''
+                                }
+                            }
+                            tool_calls_list.append(tool_call_dict)
+
+            # Build the final message properly for Mistral API
+            content_text = ''.join(content_parts)
+            
+            # Mistral requires: either content (non-empty) OR tool_calls (non-empty)
+            if content_text and tool_calls_list:
+                # Both content and tool_calls
+                final_message['content'] = content_text
+                final_message['tool_calls'] = tool_calls_list
+            elif content_text:
+                # Only content
+                final_message['content'] = content_text
+            elif tool_calls_list:
+                # Only tool_calls - content must be None
+                final_message['content'] = None
+                final_message['tool_calls'] = tool_calls_list
+            else:
+                # Neither - don't add message, just break
+                break
+
+        except Exception as e:
+            yield f"\n[Mistral AI Error: {e}]"
+            return
+
+        # Add the message to history
+        messages.append(final_message)
+        
+        # If no tool calls, we're done with this turn
+        if 'tool_calls' not in final_message or not final_message['tool_calls']:
+            break
+
+        # -------------------------------------------------------------------
+        # Execute each tool call and feed the results back to the model.
+        # -------------------------------------------------------------------
+        for tool_call in final_message['tool_calls']:
+            fn_name = tool_call['function']['name']
+            fn_args = tool_call['function']['arguments']
+            tool_call_id = tool_call.get('id')
+            
+            # Parse arguments if they're a string
+            if isinstance(fn_args, str):
+                try:
+                    fn_args = json.loads(fn_args)
+                except json.JSONDecodeError:
+                    fn_args = {}
+            
+            session = tool_to_session.get(fn_name)
+            if not session:
+                messages.append({
+                    'role': 'tool',
+                    'content': f"Error: Tool '{fn_name}' not found in any active session.",
+                    'name': fn_name,
+                    'tool_call_id': tool_call_id
+                })
+                yield f"\n[Error: Tool {fn_name} not found]"
+                continue
+            yield f"\n[Executing tool: {fn_name}...]"
+            try:
+                result = await session.call_tool(fn_name, arguments=fn_args)
+                # Extract text content from the tool response (handles a few
+                # possible shapes).
+                tool_output = ""
+                for content_item in result.content:
+                    if hasattr(content_item, 'text'):
+                        tool_output += content_item.text
+                    elif isinstance(content_item, dict) and 'text' in content_item:
+                        tool_output += content_item['text']
+                    elif hasattr(content_item, 'data'):
+                        tool_output += "\n[Image output received]"
+                messages.append({
+                    'role': 'tool',
+                    'content': tool_output,
+                    'name': fn_name,
+                    'tool_call_id': tool_call_id  # Important: link back to the tool call
+                })
+            except Exception as e:
+                messages.append({
+                    'role': 'tool',
+                    'content': f"Error executing tool: {e}",
+                    'name': fn_name,
+                    'tool_call_id': tool_call_id
+                })
+                yield f" [Error: {e}]"
+        # Loop back – the new tool results are now in *messages* and the model
+        # will be called again to continue the turn.
+
+# ---------------------------------------------------------------------------
+# Argument validation helpers.
+# ---------------------------------------------------------------------------
+def existing_file(path: str) -> Path:
+    p = Path(path).expanduser().resolve()
+    if not p.is_file():
+        raise argparse.ArgumentTypeError(f"File not found: '{p}'")
+    return p
+
+# ---------------------------------------------------------------------------
+# Build the CLI argument parser – options are added conditionally based on the
+# presence of optional server scripts.
+# ---------------------------------------------------------------------------
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=("cli tool to interact with Mistral AI and MCP tools..."),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    # Model selection – optional, we may prompt later via fzf.
+    model_arg = parser.add_argument(
+        "-m",
+        "--model",
+        type=str,
+        required=False,
+        help="Name or identifier of the Mistral model to use.",
+        metavar="MODEL",
+    )
+    # Autocomplete for model names (Mistral available models)
+    def model_completer(prefix, **kwargs):
+        # List of available Mistral models
+        mistral_models = [
+            "mistral-large-latest",
+            "mistral-small-latest",
+            "codestral-latest",
+            "mistral-embed",
+            "pixtral-large-latest",
+            "ministral-8b-latest",
+            "ministral-3b-latest",
+            "mistral-large-2411",
+            "mistral-small-2409",
+            "codestral-2405",
+            "pixtral-12b-2409",
+            "mistral-nemo",
+            "open-mistral-7b",
+            "open-mixtral-8x7b",
+            "open-mixtral-8x22b",
+        ]
+        return [m for m in mistral_models if m.startswith(prefix)]
+    model_arg.completer = model_completer
+
+    # Load a previously saved chat file.
+    parser.add_argument(
+        "-l",
+        "--load",
+        type=existing_file,
+        required=False,
+        help="Path to a file that should be loaded.",
+        metavar="CHAT",
+    )
+
+    # Various optional MCP feature flags – we enable them only if the relevant
+    # server script exists in the repository.
+    parser.add_argument(
+        "--enable-fs",
+        nargs='?',
+        const='.',
+        default=None,
+        dest='enable_fs',
+        help="Enable MCP file system tools in the specified directory (defaults to current directory).",
+    )
+
+    curr_dir = Path(__file__).parent
+
+    if (curr_dir / "image_gen_server.py").exists():
+        parser.add_argument("--enable-image", action='store_true', help="Enable MCP image generation tools.")
+    if (curr_dir / "voice_server.py").exists():
+        parser.add_argument("--enable-voice", action='store_true', help="Enable MCP voice/speech tools (Edge TTS).")
+    if (curr_dir / "coqui_voice_server.py").exists():
+        parser.add_argument("--enable-coqui-voice", action='store_true', help="Enable MCP Coqui TTS tools.")
+    if (curr_dir / "multimedia_server.py").exists():
+        parser.add_argument("--enable-webcam", action='store_true', help="Enable MCP webcam tools.")
+        parser.add_argument("--enable-stt", "--enable-tss", action='store_true', help="Enable MCP speech-to-text tools.")
+    if (curr_dir / "openshot_server.py").exists():
+        parser.add_argument("--enable-video", action='store_true', help="Enable MCP video editing tools (OpenShot/FFmpeg).")
+    if (curr_dir / "youtube_server.py").exists():
+        parser.add_argument("--enable-youtube", action='store_true', help="Enable MCP YouTube search and transcript tools.")
+    if (curr_dir / "konyks_server.py").exists():
+        parser.add_argument("--enable-konyks", action='store_true', help="Enable MCP Konyks/Tuya smart home tools.")
+    if (curr_dir / "spotify_server.py").exists():
+        parser.add_argument("--enable-spotify", action='store_true', help="Enable MCP Spotify playback tools.")
+
+    # Configuration convenience flags – do not require a server to be running.
+    if (curr_dir / "spotify_server.py").exists():
+        parser.add_argument("--config-spotify", action='store_true', help="Interactively setup Spotify API credentials in settings.json.")
+    if (curr_dir / "konyks_server.py").exists():
+        parser.add_argument("--config-konyks", action='store_true', help="Interactively setup Konyks (Tuya) API credentials in settings.json.")
+
+    # Mistral API key configuration
+    parser.add_argument("--config-mistral", action='store_true', help="Interactively setup Mistral API key in settings.json.")
+
+    return parser
+
+# ---------------------------------------------------------------------------
+# Configuration helpers – interactive prompts that write to ``settings.json``.
+# ---------------------------------------------------------------------------
+async def setup_spotify_config(console, settings_dict, initial_arg=None):
+    console.print("\n[bold cyan]Spotify Configuration[/bold cyan]")
+    cid = settings_dict.get('SPOTIPY_CLIENT_ID', '')
+    sec = settings_dict.get('SPOTIPY_CLIENT_SECRET', '')
+    red = settings_dict.get('SPOTIPY_REDIRECT_URI', 'http://127.0.0.1:8888/callback')
+
+    if not initial_arg:
+        cid = await asyncio.to_thread(prompt, "Enter SPOTIPY_CLIENT_ID: ", default=cid)
+        sec = await asyncio.to_thread(prompt, "Enter SPOTIPY_CLIENT_SECRET: ", default=sec)
+        red = await asyncio.to_thread(prompt, "Enter SPOTIPY_REDIRECT_URI: ", default=red)
+        settings_dict['SPOTIPY_CLIENT_ID'] = cid.strip()
+        settings_dict['SPOTIPY_CLIENT_SECRET'] = sec.strip()
+        settings_dict['SPOTIPY_REDIRECT_URI'] = red.strip()
+        save_settings(settings_dict)
+
+    try:
+        from spotipy.oauth2 import SpotifyOAuth
+        scope = "user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-modify-public playlist-modify-private"
+        cache_path = Path(__file__).parent / ".spotify_cache"
+        auth_manager = SpotifyOAuth(
+            client_id=settings_dict['SPOTIPY_CLIENT_ID'],
+            client_secret=settings_dict['SPOTIPY_CLIENT_SECRET'],
+            redirect_uri=settings_dict['SPOTIPY_REDIRECT_URI'],
+            scope=scope,
+            cache_path=str(cache_path),
+            open_browser=False,
+        )
+        response_url = initial_arg
+        if not response_url:
+            auth_url = auth_manager.get_authorize_url()
+            console.print(f"\n1. Please visit this URL in your browser:\n[bold cyan]{auth_url}[/bold cyan]")
+            console.print("2. Log in and agree to permissions.")
+            console.print("3. You will be redirected to your Redirect URI.")
+            response_url = await asyncio.to_thread(prompt, "4. Paste the FULL URL or the CODE you were redirected to here: ")
+        if response_url:
+            response_url = response_url.strip()
+            if not response_url.startswith("http"):
+                code = response_url
+            else:
+                code = auth_manager.parse_response_code(response_url)
+            token = auth_manager.get_access_token(code, as_dict=False)
+            if token:
+                console.print("[green]Authentication successful! Token saved.[/green]")
+            else:
+                console.print("[red]Failed to get access token.[/red]")
+    except Exception as e:
+        console.print(f"[red]Authentication failed: {e}[/red]")
+        console.print("[yellow]Tip: Make sure you copied the FULL URL or just the 'code=' part correctly.[/yellow]")
+    console.print("[green]Spotify settings updated![/green]")
+
+async def setup_konyks_config(console, settings_dict):
+    console.print("\n[bold cyan]Konyks (Tuya) Configuration[/bold cyan]")
+    cid = await asyncio.to_thread(prompt, "Enter TUYA_CLIENT_ID (Access ID): ", default=settings_dict.get('TUYA_CLIENT_ID', ''))
+    sec = await asyncio.to_thread(prompt, "Enter TUYA_CLIENT_SECRET (Access Secret): ", default=settings_dict.get('TUYA_CLIENT_SECRET', ''))
+    uid = await asyncio.to_thread(prompt, "Enter TUYA_UID (User ID): ", default=settings_dict.get('TUYA_UID', ''))
+    reg = await asyncio.to_thread(prompt, "Enter TUYA_BASE_URL: ", default=settings_dict.get('TUYA_BASE_URL', 'https://openapi.tuyaeu.com'))
+    settings_dict['TUYA_CLIENT_ID'] = cid.strip()
+    settings_dict['TUYA_CLIENT_SECRET'] = sec.strip()
+    settings_dict['TUYA_UID'] = uid.strip()
+    settings_dict['TUYA_BASE_URL'] = reg.strip()
+    save_settings(settings_dict)
+    console.print("[green]Konyks settings saved![/green]")
+
+async def setup_mistral_config(console, settings_dict):
+    console.print("\n[bold cyan]Mistral AI Configuration[/bold cyan]")
+    console.print("Get your API key from: https://console.mistral.ai/api-keys/")
+    api_key = await asyncio.to_thread(prompt, "Enter your Mistral AI API key: ", default=settings_dict.get('mistral_api_key', ''))
+    settings_dict['mistral_api_key'] = api_key.strip()
+    save_settings(settings_dict)
+    console.print("[green]Mistral API key saved![/green]")
+
+# ---------------------------------------------------------------------------
+# Helper for displaying the list of internal commands.
+# ---------------------------------------------------------------------------
+def show_internal_options(console):
+    options = [
+        "    Here are your options",
+        "    ---------------------",
+        "    exit => to quit",
+        "    /?   => to show this help",
+        "    /save => to save current CHAT",
+        "    /load => to load saved CHAT",
+        "    /settings => to show settings.json content and path",
+        "    !   => to run shell command (e.g. !ls)",
+        "    EOF => to valide prompt input",
+        "    >> => show all code blocks available",
+        "    >>0 => show code block 0 and add it to clipboard buffer",
+        "    || => show all tables available",
+        "    ||0 => show table 0 and add it to clipboard buffer",
+        "    << => toggle voice recording (requires --enable-tss)"
+    ]
+    curr_dir = Path(__file__).parent
+    if (curr_dir / "spotify_server.py").exists():
+        options.append("    /config-spotify => setup Spotify API credentials")
+    if (curr_dir / "konyks_server.py").exists():
+        options.append("    /config-konyks => setup Konyks (Tuya) API credentials")
+    options.append("    /config-mistral => setup Mistral API key")
+    
+    console.print("\n".join(options), style="red")
+
+# ---------------------------------------------------------------------------
+# Main asynchronous entry point – parses arguments, starts optional MCP servers,
+# and runs the interactive REPL loop.
+# ---------------------------------------------------------------------------
+async def main_async(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    argcomplete.autocomplete(parser)
+    args = parser.parse_args(argv)
+    console = Console()
+
+    # -------------------------------------------------------------------
+    # Load an optional saved chat file.
+    # -------------------------------------------------------------------
+    messages: list[dict] = []
+    buffer = ""
+    model = None
+    last_save_file = None
+    auto_save_enabled = False
+
+    if args.load:
+        console.print(f"File to load:    {args.load}")
+        try:
+            c = ChatManager()
+            c.load_from_file(str(args.load))
+            model = c.get_model()
+            loaded_history = c.data.get('history')
+            if isinstance(loaded_history, str):
+                messages = [{'role': 'user', 'content': loaded_history}]
+            elif isinstance(loaded_history, list):
+                messages = loaded_history
+        except Exception as exc:
+            console.print(f"Error reading file {args.load}: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+    # -------------------------------------------------------------------
+    # Configuration flags (Spotify / Konyks / Mistral) – they run and then exit.
+    # -------------------------------------------------------------------
+    if getattr(args, 'config_spotify', False):
+        await setup_spotify_config(console, settings)
+        return 0
+    if getattr(args, 'config_konyks', False):
+        await setup_konyks_config(console, settings)
+        return 0
+    if getattr(args, 'config_mistral', False):
+        await setup_mistral_config(console, settings)
+        return 0
+
+    # -------------------------------------------------------------------
+    # Check for Mistral API key
+    # -------------------------------------------------------------------
+    api_key = settings.get('mistral_api_key', '') or os.environ.get('MISTRAL_API_KEY', '')
+    if not api_key:
+        console.print("[bold red]Error:[/] Mistral API key not found.")
+        console.print("Please set it via:")
+        console.print("  - /config-mistral command inside the app")
+        console.print("  - MISTRAL_API_KEY environment variable")
+        console.print("  - mistral_api_key in settings.json")
+        return 1
+
+    # Initialize Mistral client
+    if Mistral is None:
+        console.print("[bold red]Error:[/] mistralai package not installed.")
+        console.print("Install it with: pip install mistralai")
+        return 1
+
+    client = Mistral(api_key=api_key)
+
+    # -------------------------------------------------------------------
+    # Model selection – either from CLI, from prior load, or via an interactive fzf.
+    # -------------------------------------------------------------------
+    if model is None:
+        if args.model:
+            model = args.model
+        else:
+            # List of available Mistral models
+            mistral_models = [
+                "mistral-large-latest",
+                "mistral-small-latest",
+                "codestral-latest",
+                "pixtral-large-latest",
+                "ministral-8b-latest",
+                "ministral-3b-latest",
+                "mistral-large-2411",
+                "mistral-small-2409",
+                "codestral-2405",
+                "pixtral-12b-2409",
+                "mistral-nemo",
+                "open-mistral-7b",
+                "open-mixtral-8x7b",
+                "open-mixtral-8x22b",
+            ]
+            try:
+                input_str = "\n".join(mistral_models)
+                p = subprocess.Popen(['fzf'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+                stdout, _ = p.communicate(input=input_str)
+                selected = stdout.strip()
+                if selected:
+                    model = selected
+                else:
+                    raise ValueError("No model selected via fzf.")
+            except Exception as e:
+                # Fallback to default model if fzf fails
+                model = "mistral-small-latest"
+                console.print(f"[yellow]fzf not available, using default: {model}[/yellow]")
+    
+    console.print(f"Model selected:  {model}", style="bold white on green")
+
+    # -------------------------------------------------------------------
+    # Inner REPL – handles user input, EOF detection, internal commands,
+    # streaming responses, and optional auto‑save.
+    # -------------------------------------------------------------------
+    async def run_loop(sessions=None):
+        nonlocal buffer, messages, last_save_file, auto_save_enabled, model
+        # Define a tiny completer that only offers completions at start‑of‑line.
+        internal_commands = [
+            'exit', '/?', '/save', '/load', '/settings', '/style', '/eof', '!', '/auto', 'EOF', '>>', '||', '<<'
+        ]
+        curr_dir = Path(__file__).parent
+        if (curr_dir / "spotify_server.py").exists():
+            internal_commands.append('/config-spotify')
+        if (curr_dir / "konyks_server.py").exists():
+            internal_commands.append('/config-konyks')
+        internal_commands.append('/config-mistral')
+        from prompt_toolkit.completion import Completion
+        class StartOfLineCompleter(Completer):
+            def get_completions(self, document, complete_event):
+                if ' ' in document.text_before_cursor:
+                    return
+                for word in internal_commands:
+                    if word.lower().startswith(document.text_before_cursor.lower()):
+                        yield Completion(word, start_position=-len(document.text_before_cursor))
+        completer = StartOfLineCompleter()
+        session_input = PromptSession()
+        is_recording = False
+        mdl = None  # Will hold the last MarkdownExtractor instance.
+        while True:
+            prompt_text = f"{Emoji('peanuts')} >> {Emoji('brain')} \n" if not buffer else ""
+            # Define style for the prompt
+            from prompt_toolkit.styles import Style
+            global style_b
+            global style_g
+            style_b = Style.from_dict({
+                'peanuts': '#ansigreen',
+                'brain': '#ansicyan',
+            })
+            user_input = await session_input.prompt_async(
+                prompt_text,
+                style=style_b,
+                completer=completer
+            )
+            # ----------------------------------------------------------------
+            # Voice trigger handling (<< by default).
+            # ----------------------------------------------------------------
+            vt = settings.get('voice_trigger', '<<')
+            if user_input.strip() == vt:
+                if not sessions:
+                    console.print("[red]Error: No MCP sessions active.[/red]")
+                    continue
+                # Find a session that provides a start_recording tool.
+                stt_session = None
+                for s in sessions:
+                    try:
+                        tools_res = await s.list_tools()
+                        if any(t.name == "start_recording" for t in tools_res.tools):
+                            stt_session = s
+                            break
+                    except Exception:
+                        continue
+                if not stt_session:
+                    console.print("[red]Error: Speech‑to‑text server not active. Use --enable-tss.[/red]")
+                    continue
+                if not is_recording:
+                    res = await stt_session.call_tool("start_recording", arguments={})
+                    console.print(f"[bold green]{res.content[0].text}[/bold green]")
+                    is_recording = True
+                else:
+                    console.print("[dim]Stopping recording and transcribing...[/dim]")
+                    res = await stt_session.call_tool("stop_recording", arguments={})
+                    if res.isError:
+                        console.print(f"[red]Error stopping recording: {res.content[0].text}[/red]")
+                    else:
+                        transcribed_text = res.content[0].text
+                        console.print(f"[bold cyan]Transcribed:[/] {transcribed_text}")
+                        buffer += transcribed_text + " "
+                    is_recording = False
+                continue
+            # ----------------------------------------------------------------
+            # Internal command processing (exit, help, settings, etc.).
+            # ----------------------------------------------------------------
+            cmd = user_input.lower().strip()
+            if cmd == 'exit':
+                break
+            if cmd == '/?':
+                show_internal_options(console)
+                continue
+            if cmd == '/style':
+                console.print("\n[bold cyan]Theme Customization[/bold cyan]")
+                target = await asyncio.to_thread(prompt, "Change [b]lue or [g]reen style? (b/g): ", style=style_g)
+                if target.lower() not in ['b', 'g']:
+                    console.print("[red]Invalid selection.[/red]")
+                    continue
+                current = settings['style_b'] if target.lower() == 'b' else settings['style_g']
+                console.print(f"Current color: {current}")
+                new_color = await asyncio.to_thread(prompt, "Enter new style (e.g. '#ffffff bg:#ff0000'): ", style=style_g)
+                if new_color:
+                    try:
+                        Style.from_dict({'': new_color})
+                        if target.lower() == 'b':
+                            settings['style_b'] = new_color
+                            style_b = Style.from_dict({'': new_color})
+                        else:
+                            settings['style_g'] = new_color
+                            style_g = Style.from_dict({'': new_color})
+                        save_settings(settings)
+                        console.print("[green]Style updated and saved![/green]")
+                    except Exception as e:
+                        console.print(f"[red]Error: Invalid style string. ({e})[/red]")
+                continue
+            if cmd == '/eof':
+                console.print("\n[bold cyan]EOF Customization[/bold cyan]")
+                console.print(f"Current EOF string: {settings.get('eof_string', 'EOF')}")
+                new_eof = await asyncio.to_thread(prompt, "Enter new EOF string: ", style=style_g)
+                if new_eof:
+                    settings['eof_string'] = new_eof.strip()
+                    save_settings(settings)
+                    console.print(f"[green]EOF string updated to '{settings['eof_string']}' and saved![/green]")
+                continue
+            if cmd == '/settings':
+                settings_path = Path(__file__).parent / "settings.json"
+                console.print(f"\n[bold cyan]Settings Configuration[/bold cyan]")
+                console.print(f"Path: [yellow]{settings_path}[/yellow]")
+                if settings_path.exists():
+                    try:
+                        with open(settings_path, 'r', encoding='utf-8') as f:
+                            console.print("\n" + f.read())
+                    except Exception as e:
+                        console.print(f"[red]Error reading settings file: {e}[/red]")
+                else:
+                    console.print("[yellow]Settings file does not exist yet (using defaults).[/yellow]")
+                continue
+            if cmd.startswith('/config-spotify'):
+                arg = user_input.strip()[len('/config-spotify'):].strip()
+                await setup_spotify_config(console, settings, initial_arg=arg)
+                continue
+            if cmd.startswith('/config-konyks'):
+                await setup_konyks_config(console, settings)
+                continue
+            if cmd.startswith('/config-mistral'):
+                await setup_mistral_config(console, settings)
+                continue
+            if user_input.startswith('!'):
+                cmd = user_input[1:].strip()
+                if not cmd:
+                    console.print("[yellow]Usage: ! <command>[/yellow]")
+                    continue
+                try:
+                    result = subprocess.run(cmd, shell=True, text=True, capture_output=True)
+                    if result.stdout:
+                        console.print(result.stdout.strip())
+                    if result.stderr:
+                        console.print(f"[red]{result.stderr.strip()}[/red]")
+                    if result.returncode != 0:
+                        console.print(f"[bold red]Command exited with code {result.returncode}[/bold red]")
+                except Exception as e:
+                    console.print(f"[red]Error executing command: {e}[/red]")
+                continue
+            if cmd == '/save':
+                chatname_input = await asyncio.to_thread(prompt, "enter the name of the chat to save:\n", style=style_g)
+                c = ChatManager()
+                c.save_file(chatname_input, model, messages)
+                last_save_file = chatname_input
+                continue
+            if cmd == '/load':
+                c = ChatManager()
+                if not c.historyList:
+                    console.print("[yellow]No saved chats found in .historyList.json.[/yellow]")
+                    continue
+                try:
+                    display = [f"{item['fileName']} ({item['path']})" for item in c.historyList]
+                    p = subprocess.Popen(['fzf', '--prompt=Select chat to load: '], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+                    stdout, _ = p.communicate('\n'.join(display))
+                    selected = stdout.strip()
+                    if selected:
+                        sel_item = next((it for it in c.historyList if f"{it['fileName']} ({it['path']})" == selected), None)
+                        if sel_item:
+                            c.load_from_file(sel_item['path'])
+                            model = c.get_model()
+                            hist = c.data.get('history')
+                            messages = [{'role': 'user', 'content': hist}] if isinstance(hist, str) else (hist or [])
+                            last_save_file = sel_item['fileName']
+                            console.print(f"[green]Successfully loaded chat: {sel_item['fileName']}[/green]")
+                            console.print(f"Active model: [bold]{model}[/bold]")
+                        else:
+                            console.print("[red]Could not match selection to history list.[/red]")
+                    else:
+                        console.print("[yellow]Load cancelled.[/yellow]")
+                except Exception as e:
+                    console.print(f"[red]Error during load: {e}[/red]")
+                continue
+            if cmd == '/auto':
+                if not last_save_file:
+                    console.print("[yellow]You must use /save at least once before enabling auto-save.[/yellow]")
+                else:
+                    auto_save_enabled = not auto_save_enabled
+                    status = "[green]enabled[/green]" if auto_save_enabled else "[red]disabled[/red]"
+                    console.print(f"Auto-save to [bold]{last_save_file}[/bold] is now {status}.")
+                continue
+            if user_input.startswith('>>'):
+                if mdl is None:
+                    console.print("[yellow]No response generated yet to extract from.[/yellow]")
+                    continue
+                idx_part = user_input[2:].strip()
+                if not idx_part:
+                    mdl.print_code_blocks()
+                else:
+                    try:
+                        idx = int(idx_part)
+                        mdl.print_code(idx)
+                        blocks = mdl.extract_code_blocks()
+                        if 0 <= idx < len(blocks):
+                            pyperclip.copy(blocks[idx]['code'])
+                            console.print("[dim]Code copied to clipboard.[/dim]")
+                    except ValueError:
+                        console.print("[red]Invalid index for >> command.[/red]")
+                continue
+            if user_input.startswith('||'):
+                if mdl is None:
+                    console.print("[yellow]No response generated yet to extract from.[/yellow]")
+                    continue
+                idx_part = user_input[2:].strip()
+                if not idx_part:
+                    mdl.print_tables()
+                else:
+                    try:
+                        idx = int(idx_part)
+                        mdl.print_table(idx)
+                        tables = mdl.extract_tables()
+                        if 0 <= idx < len(tables):
+                            pyperclip.copy(tables[idx])
+                            console.print("[dim]Table copied to clipboard.[/dim]")
+                    except ValueError:
+                        console.print("[red]Invalid index for || command.[/red]")
+                continue
+            # ----------------------------------------------------------------
+            # Regular user text – accumulate until EOF marker is seen.
+            # ----------------------------------------------------------------
+            buffer += user_input
+            eof_marker = settings.get('eof_string', 'EOF')
+            if eof_marker in buffer:
+                content, _, _ = buffer.partition(eof_marker)
+                messages.append({'role': 'user', 'content': content})
+                buffer = ""
+                # ----------------------------------------------------------------
+                # Stream the assistant response with live markdown rendering.
+                # ----------------------------------------------------------------
+                current_response = ""
+                with Live(console=console, refresh_per_second=10, transient=False) as live:
+                    async for token in run_chat_turn(client, model, messages, sessions):
+                        current_response += token
+                        try:
+                            md = Markdown(current_response)
+                        except Exception:
+                            md = Text(current_response)
+                        live.update(md)
+                mdl = MarkdownExtractor(current_response)
+                console.print("\n")
+                # Auto‑save if enabled.
+                if auto_save_enabled and last_save_file:
+                    try:
+                        c = ChatManager()
+                        c.save_file(last_save_file, model, messages)
+                        console.print(f"[dim italic]Auto-saved to {last_save_file}[/dim italic]")
+                    except Exception as e:
+                        console.print(f"[red]Auto-save failed: {e}[/red]")
+    # -------------------------------------------------------------------
+    # Spin up optional MCP servers based on parsed arguments.
+    # -------------------------------------------------------------------
+    active_sessions = []
+    from contextlib import AsyncExitStack
+    async with AsyncExitStack() as stack:
+        # Helper to start a server and register its session.
+        async def start_server(script_name: str, extra_args: list[str] = []):
+            server_path = Path(__file__).parent / script_name
+            params = StdioServerParameters(command=sys.executable, args=[str(server_path)] + extra_args)
+            try:
+                read, write = await stack.enter_async_context(stdio_client(params))
+                sess = await stack.enter_async_context(ClientSession(read, write))
+                await sess.initialize()
+                active_sessions.append(sess)
+            except Exception as e:
+                console.print(f"[bold red]Error:[/] {script_name} failed: {e}")
+
+        if getattr(args, 'enable_fs', False):
+            await start_server("simple_fs_server.py", [str(args.enable_fs)])
+        if getattr(args, 'enable_image', False):
+            await start_server("image_gen_server.py")
+        if getattr(args, 'enable_voice', False):
+            await start_server("voice_server.py")
+        if getattr(args, 'enable_coqui_voice', False):
+            await start_server("coqui_voice_server.py")
+        if getattr(args, 'enable_webcam', False) or getattr(args, 'enable_stt', False):
+            await start_server("multimedia_server.py")
+        if getattr(args, 'enable_video', False):
+            await start_server("openshot_server.py")
+        if getattr(args, 'enable_youtube', False):
+            await start_server("youtube_server.py")
+        # Konyks – auto‑enable if credentials are present.
+        enable_konyks = getattr(args, 'enable_konyks', False)
+        if not enable_konyks and settings.get('TUYA_CLIENT_ID') and (Path(__file__).parent / "konyks_server.py").exists():
+            enable_konyks = True
+        if enable_konyks:
+            await start_server("konyks_server.py")
+        # Spotify – auto‑enable if credentials are present.
+        enable_spotify = getattr(args, 'enable_spotify', False)
+        if not enable_spotify and settings.get('SPOTIPY_CLIENT_ID') and (Path(__file__).parent / "spotify_server.py").exists():
+            enable_spotify = True
+        if enable_spotify:
+            await start_server("spotify_server.py")
+
+        await run_loop(active_sessions if active_sessions else None)
+    return 0
+
+# ---------------------------------------------------------------------------
+# Entry‑point wrapper.
+# ---------------------------------------------------------------------------
+def main():
+    asyncio.run(main_async())
+
+if __name__ == "__main__":
+    main()
