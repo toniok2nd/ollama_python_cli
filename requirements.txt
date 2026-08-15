@@ -4,3 +4,4 @@ pyperclip
 ollama
 mcp
 argcomplete
+fastmcp
