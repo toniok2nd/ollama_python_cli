@@ -1,8 +1,11 @@
-from mcp.server.fastmcp import FastMCP
-import os
+try:
+    from mcp.server.fastmcp import FastMCP
+    mcp = FastMCP("Simple File System Server")
+except:
+    from mcp.server.mcpserver import MCPServer
+    mcp = MCPServer("Simple File System Server")
 
-# Create an MCP server
-mcp = FastMCP("Simple File System Server")
+import os
 
 @mcp.tool()
 def read_file(path: str) -> str:

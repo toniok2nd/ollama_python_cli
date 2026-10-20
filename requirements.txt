@@ -2,6 +2,6 @@ rich
 prompt_toolkit
 pyperclip
 ollama
-mcp
+mcp<2
 argcomplete
 fastmcp
